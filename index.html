@@ -281,7 +281,7 @@
       transform: translate(-50%, -50%) scale(1.5);
     }
 
-    /* Detailed Callout Node with Collision-free Placement */
+    /* Detailed Callout Node (Information Display Mode) */
     .callout-node {
       position: absolute;
       transform: translate(-50%, -50%);
@@ -290,11 +290,11 @@
       z-index: 15;
       display: flex;
       align-items: center;
-      gap: 5px;
-      background: rgba(15, 23, 42, 0.88);
+      gap: 6px;
+      background: rgba(15, 23, 42, 0.90);
       backdrop-filter: blur(6px);
       border: 1.5px solid var(--border-color);
-      border-radius: 18px;
+      border-radius: 14px;
       padding: 3px 8px 3px 4px;
       box-shadow: 0 4px 16px rgba(0,0,0,0.7);
       white-space: nowrap;
@@ -313,14 +313,14 @@
     }
 
     .callout-rank-circle {
-      width: 18px;
-      height: 18px;
+      width: 20px;
+      height: 20px;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
       color: white;
-      font-size: 10px;
+      font-size: 11px;
       font-weight: 900;
       flex-shrink: 0;
       box-shadow: 0 1px 3px rgba(0,0,0,0.4);
@@ -329,18 +329,37 @@
     .callout-text-info {
       display: flex;
       flex-direction: column;
-      line-height: 1.15;
+      line-height: 1.2;
     }
 
-    .callout-record-no {
+    .callout-main-row {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .callout-num-badge {
+      font-size: 12px;
+      font-weight: 800;
+      color: #38bdf8;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    .callout-member-code {
       font-size: 11px;
       font-weight: 700;
       color: #ffffff;
+      background: rgba(255,255,255,0.1);
+      padding: 0 4px;
+      border-radius: 3px;
     }
 
-    .callout-sub-info {
-      font-size: 9px;
+    .callout-location-row {
+      font-size: 10px;
       color: #cbd5e1;
+      display: flex;
+      align-items: center;
+      gap: 3px;
     }
 
     .callout-check-mark {
@@ -823,7 +842,7 @@
     </div>
   </main>
 
-  <!-- Mobile Bottom Sheet (Detail Modal) -->
+  <!-- Mobile Bottom Sheet (Modal for Detail) -->
   <div class="bottom-sheet-backdrop" id="sheetBackdrop">
     <div class="bottom-sheet" id="bottomSheet">
       <div class="sheet-handle-bar" id="sheetHandleBar">
@@ -926,7 +945,7 @@
     };
 
     // Zoom threshold to switch between compact pin and leader-line callout mode
-    const CALLOUT_ZOOM_THRESHOLD = 1.4;
+    const CALLOUT_ZOOM_THRESHOLD = 1.35;
 
     const STORAGE_KEY = 'kagacheck_confirmed_pins_v1';
 
@@ -974,6 +993,31 @@
       return '#64748b';
     }
 
+    // Helper: Extract last 3 digits of recordNo
+    function getRecordLast3(recordNo) {
+      if (!recordNo) return '---';
+      const match = recordNo.match(/(\d{3})$/);
+      return match ? match[1] : recordNo.slice(-3);
+    }
+
+    // Helper: Extract short member code inside parentheses ()
+    function getMemberShortCode(member) {
+      if (!member) return '';
+      const match = member.match(/\(([^)]+)\)/);
+      return match ? match[1] : member.slice(0, 4);
+    }
+
+    // Helper: Format location and street range
+    function formatLocationStreet(location, streetFrom, streetTo) {
+      const loc = location || '';
+      let street = streetFrom || '';
+      if (streetTo && streetTo !== streetFrom) {
+        street = street ? `${street}〜${streetTo}` : streetTo;
+      }
+      if (loc && street) return `${loc} ${street}`;
+      return loc || street || '-';
+    }
+
     // Build Clusters for close pins
     function buildClusters(pins) {
       const clusters = [];
@@ -1010,7 +1054,7 @@
       return true;
     }
 
-    // Collision-free Leader Line & Callout Placement Algorithm
+    // Collision-free Leader Line & Callout Placement
     function renderOverlays() {
       const isCalloutMode = state.scale >= CALLOUT_ZOOM_THRESHOLD;
       const pinsLayer = document.getElementById('pinsLayer');
@@ -1020,9 +1064,9 @@
 
       const zoomHintText = document.getElementById('zoomHintText');
       if (isCalloutMode) {
-        zoomHintText.textContent = `詳細表示 (${Math.round(state.scale * 100)}%)`;
+        zoomHintText.textContent = `情報表示 (${Math.round(state.scale * 100)}%)`;
       } else {
-        zoomHintText.textContent = `全体表示（拡大で引き出し線表示）`;
+        zoomHintText.textContent = `ピン表示（拡大で情報表示）`;
       }
 
       const imgW = overviewImg.naturalWidth || 1000;
@@ -1032,10 +1076,8 @@
       svgLayer.setAttribute('width', imgW);
       svgLayer.setAttribute('height', imgH);
 
-      // Store occupied bounding boxes in image pixel space for collision avoidance
       const placedBoxes = [];
 
-      // Check if candidate box collides with existing placed boxes
       function hasCollision(candidateBox) {
         for (const b of placedBoxes) {
           const overlapX = Math.max(0, Math.min(candidateBox.r, b.r) - Math.max(candidateBox.l, b.l));
@@ -1054,7 +1096,7 @@
         const originPxY = cluster.yRatio * imgH;
 
         if (!isCalloutMode) {
-          // --- COMPACT PIN MODE (Zoom < Threshold) ---
+          // --- 1. PIN DISPLAY MODE (Zoom < Threshold) ---
           const pinEl = document.createElement('div');
           pinEl.className = `compact-pin ${isDimmed ? 'dimmed' : ''} ${allConfirmed ? 'is-confirmed' : ''}`;
           pinEl.style.left = `${cluster.xRatio * 100}%`;
@@ -1079,8 +1121,7 @@
           pinsLayer.appendChild(pinEl);
 
         } else {
-          // --- NON-OVERLAPPING LEADER LINE CALLOUT MODE (Zoom >= Threshold) ---
-          // Anchor point at actual defect spot
+          // --- 2. INFORMATION DISPLAY MODE (Leader line with: [Rank] Last 3 digits, (Member), Location & Street) ---
           const anchorEl = document.createElement('div');
           anchorEl.className = `callout-anchor-point ${isDimmed ? 'dimmed' : ''}`;
           anchorEl.style.left = `${cluster.xRatio * 100}%`;
@@ -1091,31 +1132,28 @@
           });
           pinsLayer.appendChild(anchorEl);
 
-          // Card dimensions in native image pixel coordinates (scaled by current zoom)
-          // Average node width: ~110px on screen -> in image pixels = 110 / state.scale
-          const nodeScreenW = 100;
-          const nodeScreenH = 26;
+          // Card dimensions in native image coordinates
+          const nodeScreenW = 115;
+          const nodeScreenH = 34;
           const nodeImgW = nodeScreenW / state.scale;
           const nodeImgH = nodeScreenH / state.scale;
 
-          // Candidate angle patterns for staggering and multi-item clusters
-          // Alternating quadrant by cluster index (even: upper-right, odd: lower-right, etc.)
-          const baseAngles = clusterIdx % 2 === 0 ? [-35, 35, -65, 65, -10, 10, -145, 145] : [35, -35, 65, -65, 10, -10, 145, -145];
-          const distSteps = [40, 70, 100, 130, 160]; // Distance steps in image pixels
+          const baseAngles = clusterIdx % 2 === 0 ? [-35, 35, -65, 65, -15, 15, -145, 145] : [35, -35, 65, -65, 15, -15, 145, -145];
+          const distSteps = [42, 72, 105, 138, 170];
 
           cluster.pins.forEach((pin, pinIdx) => {
             const isVisible = isPinVisible(pin);
             const isConfirmed = state.confirmedPinIds.has(pin.pinId);
             const rankColor = getRankBadgeBg(pin.corrosionRank);
 
-            // Find best non-overlapping position
+            // Find collision-free placement
             let bestX = originPxX + 45;
             let bestY = originPxY - 30;
             let foundSafePos = false;
 
             for (const d of distSteps) {
               for (const deg of baseAngles) {
-                const shiftedDeg = deg + (pinIdx * 25);
+                const shiftedDeg = deg + (pinIdx * 28);
                 const rad = (shiftedDeg * Math.PI) / 180;
                 const candidateX = originPxX + Math.cos(rad) * d;
                 const candidateY = originPxY + Math.sin(rad) * d;
@@ -1139,7 +1177,6 @@
             }
 
             if (!foundSafePos) {
-              // Fallback staggered offset
               const rad = ((-30 + pinIdx * 35) * Math.PI) / 180;
               bestX = originPxX + Math.cos(rad) * (50 + pinIdx * 30);
               bestY = originPxY + Math.sin(rad) * (50 + pinIdx * 30);
@@ -1153,7 +1190,6 @@
 
             // Draw Leader Line in SVG
             if (!isDimmed && isVisible) {
-              // Polyline with joint
               const midX = (originPxX + bestX) / 2;
               const midY = (originPxY + bestY) / 2;
 
@@ -1173,25 +1209,34 @@
               svgLayer.appendChild(jointCircle);
             }
 
-            // HTML Callout Node (Info Card at line tip)
+            // Extract the exact fields requested by user:
+            const last3 = getRecordLast3(pin.recordNo);
+            const memberCode = getMemberShortCode(pin.member);
+            const locStreet = formatLocationStreet(pin.location, pin.streetFrom, pin.streetTo);
+
+            // HTML Callout Node (Information Card at line tip)
             const nodeEl = document.createElement('div');
             nodeEl.className = `callout-node ${!isVisible ? 'dimmed' : ''} ${isConfirmed ? 'is-confirmed' : ''}`;
             nodeEl.style.left = `${(bestX / imgW) * 100}%`;
             nodeEl.style.top = `${(bestY / imgH) * 100}%`;
-
-            const thicknessText = pin.measuredThicknessMm ? `${pin.measuredThicknessMm}mm` : '';
 
             nodeEl.innerHTML = `
               <div class="callout-rank-circle" style="background: ${rankColor};">
                 ${pin.corrosionRank || '-'}
               </div>
               <div class="callout-text-info">
-                <span class="callout-record-no">${pin.recordNo || ''}</span>
-                <span class="callout-sub-info">${pin.member || ''} ${thicknessText}</span>
+                <div class="callout-main-row">
+                  <span class="callout-num-badge">#${last3}</span>
+                  ${memberCode ? `<span class="callout-member-code">${memberCode}</span>` : ''}
+                  ${isConfirmed ? '<span class="callout-check-mark">✓</span>' : ''}
+                </div>
+                <div class="callout-location-row">
+                  <span>${locStreet}</span>
+                </div>
               </div>
-              ${isConfirmed ? '<span class="callout-check-mark">✓</span>' : ''}
             `;
 
+            // Tap Callout -> Opens 3. Detail Bottom Sheet
             nodeEl.addEventListener('click', (e) => {
               e.stopPropagation();
               openBottomSheet(clusterIdx, pinIdx);
@@ -1203,7 +1248,7 @@
       });
     }
 
-    // Bottom Sheet Detail Modal
+    // --- 3. DETAIL DISPLAY MODE (Bottom Sheet Detail Modal) ---
     function openBottomSheet(clusterIdx, pinIdx = 0) {
       state.activeClusterIndex = clusterIdx;
       state.activeRecordIndexInCluster = pinIdx;
@@ -1217,10 +1262,12 @@
         cluster.pins.forEach((p, idx) => {
           const tab = document.createElement('button');
           const isConfirmed = state.confirmedPinIds.has(p.pinId);
+          const last3 = getRecordLast3(p.recordNo);
+          const memberCode = getMemberShortCode(p.member);
           tab.className = `cluster-tab-pill ${idx === pinIdx ? 'active' : ''}`;
           tab.innerHTML = `
             <span style="background:${getRankBadgeBg(p.corrosionRank)}; color:white; padding:1px 4px; border-radius:3px; font-size:9px;">${p.corrosionRank || '-'}</span>
-            <span>${p.recordNo}</span>
+            <span>#${last3} ${memberCode}</span>
             ${isConfirmed ? '<span>✓</span>' : ''}
           `;
           tab.addEventListener('click', () => openBottomSheet(clusterIdx, idx));
@@ -1247,14 +1294,13 @@
       document.getElementById('valPinType').textContent = pin.pinType || '-';
       document.getElementById('valLevel').textContent = pin.level || '-';
       document.getElementById('valMember').textContent = `${pin.member || '-'}${pin.memberSize ? ' (' + pin.memberSize + ')' : ''}`;
-      document.getElementById('valStreet').textContent = `${pin.location || ''} ${pin.streetFrom ? '(' + pin.streetFrom + (pin.streetTo ? ' 〜 ' + pin.streetTo : '') + ')' : ''}` || '-';
+      document.getElementById('valStreet').textContent = formatLocationStreet(pin.location, pin.streetFrom, pin.streetTo);
       document.getElementById('valThickness').textContent = pin.measuredThicknessMm ? `${pin.measuredThicknessMm} mm` : '-';
       document.getElementById('valRemarks').textContent = pin.remarks ? `${pin.remarks} mm` : '-';
 
       const img = document.getElementById('sheetCloseupImg');
       img.src = pin.closeupPhotoFile ? `closeup_photos/${pin.closeupPhotoFile}` : '';
 
-      // Confirm button UI
       const isConfirmed = state.confirmedPinIds.has(pin.pinId);
       const confirmBtn = document.getElementById('btnConfirmToggle');
       const confirmIcon = document.getElementById('confirmIcon');
@@ -1322,6 +1368,10 @@
 
       filteredPins.forEach(pin => {
         const isConfirmed = state.confirmedPinIds.has(pin.pinId);
+        const last3 = getRecordLast3(pin.recordNo);
+        const memberCode = getMemberShortCode(pin.member);
+        const locStreet = formatLocationStreet(pin.location, pin.streetFrom, pin.streetTo);
+
         const card = document.createElement('div');
         card.className = 'list-item-card';
         card.innerHTML = `
@@ -1332,7 +1382,7 @@
               ${isConfirmed ? '<span style="color:var(--accent-green); font-size:11px; font-weight:bold;">✓ 済</span>' : ''}
             </div>
             <div style="font-size:11px; color:var(--text-muted);">
-              ${pin.member || ''} | ${pin.location || ''} ${pin.streetFrom || ''}
+              ${memberCode ? `[${memberCode}] ` : ''}${locStreet}
             </div>
           </div>
           <div style="font-size:13px; font-weight:700; color:var(--accent-blue);">
@@ -1374,13 +1424,11 @@
       state.scale = newScale;
       applyTransform();
 
-      // Check if crossed threshold or need re-calculation of collision boxes
       const isCallout = state.scale >= CALLOUT_ZOOM_THRESHOLD;
       if (isCallout !== previousScaleState) {
         previousScaleState = isCallout;
         renderOverlays();
       } else if (isCallout) {
-        // Debounced layout update for smooth zooming
         clearTimeout(renderDebounceTimer);
         renderDebounceTimer = setTimeout(renderOverlays, 100);
       }
@@ -1415,7 +1463,7 @@
 
       state.scale = Math.max(state.scale, 2.2);
       state.panX = vw / 2 - targetX * state.scale;
-      state.panY = vh * 0.35 - targetY * state.scale; // Bias upward for bottom sheet
+      state.panY = vh * 0.35 - targetY * state.scale;
       applyTransform();
 
       previousScaleState = state.scale >= CALLOUT_ZOOM_THRESHOLD;
@@ -1580,7 +1628,7 @@
 
     function exportStatusCsv() {
       const rows = [
-        ['recordNo', 'pinType', 'corrosionRank', 'member', 'location', 'streetFrom', 'measuredThicknessMm', 'isConfirmed']
+        ['recordNo', 'pinType', 'corrosionRank', 'member', 'location', 'streetFrom', 'streetTo', 'measuredThicknessMm', 'isConfirmed']
       ];
       state.allPins.forEach(p => {
         rows.push([
@@ -1590,6 +1638,7 @@
           `"${p.member || ''}"`,
           `"${p.location || ''}"`,
           `"${p.streetFrom || ''}"`,
+          `"${p.streetTo || ''}"`,
           `"${p.measuredThicknessMm || ''}"`,
           state.confirmedPinIds.has(p.pinId) ? 'CONFIRMED' : 'UNCONFIRMED'
         ]);
