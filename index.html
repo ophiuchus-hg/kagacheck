@@ -277,16 +277,12 @@
       z-index: 12;
     }
 
-    .callout-anchor-point:active {
-      transform: translate(-50%, -50%) scale(1.5);
-    }
-
-    /* Detailed Callout Node (Information Display Mode) */
+    /* Detailed Callout Node (Information Display Mode with Drag Support) */
     .callout-node {
       position: absolute;
       transform: translate(-50%, -50%);
       pointer-events: auto;
-      cursor: pointer;
+      cursor: grab;
       z-index: 15;
       display: flex;
       align-items: center;
@@ -298,13 +294,17 @@
       padding: 3px 8px 3px 4px;
       box-shadow: 0 4px 16px rgba(0,0,0,0.7);
       white-space: nowrap;
-      transition: transform 0.15s ease, border-color 0.15s ease, opacity 0.2s ease;
+      transition: border-color 0.15s ease, opacity 0.2s ease, box-shadow 0.15s ease;
+      touch-action: none;
     }
 
-    .callout-node:active {
-      transform: translate(-50%, -50%) scale(1.15);
-      border-color: var(--accent-blue);
-      z-index: 25;
+    .callout-node.is-dragging {
+      cursor: grabbing;
+      transform: translate(-50%, -50%) scale(1.18);
+      border-color: #38bdf8;
+      box-shadow: 0 8px 24px rgba(56,189,248,0.6);
+      background: rgba(15, 23, 42, 0.98);
+      z-index: 50;
     }
 
     .callout-node.is-confirmed {
@@ -330,6 +330,7 @@
       display: flex;
       flex-direction: column;
       line-height: 1.2;
+      pointer-events: none;
     }
 
     .callout-main-row {
@@ -408,7 +409,7 @@
       color: #000;
     }
 
-    /* Zoom Level Indicator */
+    /* Zoom & Drag Status Badge */
     .zoom-hint-badge {
       position: absolute;
       left: 12px;
@@ -831,7 +832,7 @@
     <!-- Zoom Hint Badge -->
     <div class="zoom-hint-badge" id="zoomHintBadge">
       <span>🔍</span>
-      <span id="zoomHintText">全体表示（拡大で引き出し線表示）</span>
+      <span id="zoomHintText">全体表示（拡大で情報表示）</span>
     </div>
 
     <!-- Touch Floating Action Buttons -->
@@ -938,16 +939,17 @@
       filterRank: 'ALL',
       filterStatus: 'ALL',
       confirmedPinIds: new Set(),
+      // Custom Callout manual positions { [pinId]: { xRatio, yRatio } }
+      customNodePositions: {},
       // Touch transform
       scale: 1,
       panX: 0,
       panY: 0
     };
 
-    // Zoom threshold to switch between compact pin and leader-line callout mode
     const CALLOUT_ZOOM_THRESHOLD = 1.35;
-
     const STORAGE_KEY = 'kagacheck_confirmed_pins_v1';
+    const CUSTOM_POS_KEY = 'kagacheck_custom_positions_v1';
 
     // LocalStorage
     function loadConfirmedState() {
@@ -955,6 +957,10 @@
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
           state.confirmedPinIds = new Set(JSON.parse(saved));
+        }
+        const savedPos = localStorage.getItem(CUSTOM_POS_KEY);
+        if (savedPos) {
+          state.customNodePositions = JSON.parse(savedPos);
         }
       } catch (e) {
         console.warn(e);
@@ -969,6 +975,14 @@
       }
       updateProgress();
       renderOverlays();
+    }
+
+    function saveCustomPositions() {
+      try {
+        localStorage.setItem(CUSTOM_POS_KEY, JSON.stringify(state.customNodePositions));
+      } catch (e) {
+        console.warn(e);
+      }
     }
 
     function updateProgress() {
@@ -1054,7 +1068,7 @@
       return true;
     }
 
-    // Collision-free Leader Line & Callout Placement
+    // Viewport Culling & Drag-enabled Leader Line Callout Placement
     function renderOverlays() {
       const isCalloutMode = state.scale >= CALLOUT_ZOOM_THRESHOLD;
       const pinsLayer = document.getElementById('pinsLayer');
@@ -1064,7 +1078,7 @@
 
       const zoomHintText = document.getElementById('zoomHintText');
       if (isCalloutMode) {
-        zoomHintText.textContent = `情報表示 (${Math.round(state.scale * 100)}%)`;
+        zoomHintText.textContent = `情報表示 (長押しで位置移動可)`;
       } else {
         zoomHintText.textContent = `ピン表示（拡大で情報表示）`;
       }
@@ -1075,6 +1089,15 @@
       svgLayer.setAttribute('viewBox', `0 0 ${imgW} ${imgH}`);
       svgLayer.setAttribute('width', imgW);
       svgLayer.setAttribute('height', imgH);
+
+      // Calculate Visible Viewport Bounding Box in image pixel coordinates (with padding)
+      const vpW = viewport.clientWidth;
+      const vpH = viewport.clientHeight;
+      const pad = 80 / state.scale; // 80px margin
+      const visLeft = (-state.panX) / state.scale - pad;
+      const visRight = (-state.panX + vpW) / state.scale + pad;
+      const visTop = (-state.panY) / state.scale - pad;
+      const visBottom = (-state.panY + vpH) / state.scale + pad;
 
       const placedBoxes = [];
 
@@ -1088,12 +1111,17 @@
       }
 
       state.clusters.forEach((cluster, clusterIdx) => {
+        const originPxX = cluster.xRatio * imgW;
+        const originPxY = cluster.yRatio * imgH;
+
+        // Viewport Culling: Skip if anchor point is completely outside screen
+        if (originPxX < visLeft || originPxX > visRight || originPxY < visTop || originPxY > visBottom) {
+          return;
+        }
+
         const matchingPins = cluster.pins.filter(isPinVisible);
         const isDimmed = matchingPins.length === 0;
         const allConfirmed = cluster.pins.every(p => state.confirmedPinIds.has(p.pinId));
-
-        const originPxX = cluster.xRatio * imgW;
-        const originPxY = cluster.yRatio * imgH;
 
         if (!isCalloutMode) {
           // --- 1. PIN DISPLAY MODE (Zoom < Threshold) ---
@@ -1121,7 +1149,7 @@
           pinsLayer.appendChild(pinEl);
 
         } else {
-          // --- 2. INFORMATION DISPLAY MODE (Leader line with: [Rank] Last 3 digits, (Member), Location & Street) ---
+          // --- 2. INFORMATION DISPLAY MODE (Visible only, Drag enabled) ---
           const anchorEl = document.createElement('div');
           anchorEl.className = `callout-anchor-point ${isDimmed ? 'dimmed' : ''}`;
           anchorEl.style.left = `${cluster.xRatio * 100}%`;
@@ -1132,7 +1160,6 @@
           });
           pinsLayer.appendChild(anchorEl);
 
-          // Card dimensions in native image coordinates
           const nodeScreenW = 115;
           const nodeScreenH = 34;
           const nodeImgW = nodeScreenW / state.scale;
@@ -1146,75 +1173,82 @@
             const isConfirmed = state.confirmedPinIds.has(pin.pinId);
             const rankColor = getRankBadgeBg(pin.corrosionRank);
 
-            // Find collision-free placement
-            let bestX = originPxX + 45;
-            let bestY = originPxY - 30;
-            let foundSafePos = false;
+            let bestX, bestY;
 
-            for (const d of distSteps) {
-              for (const deg of baseAngles) {
-                const shiftedDeg = deg + (pinIdx * 28);
-                const rad = (shiftedDeg * Math.PI) / 180;
-                const candidateX = originPxX + Math.cos(rad) * d;
-                const candidateY = originPxY + Math.sin(rad) * d;
+            // Check if user manually dragged this node previously
+            if (state.customNodePositions[pin.pinId]) {
+              bestX = state.customNodePositions[pin.pinId].xRatio * imgW;
+              bestY = state.customNodePositions[pin.pinId].yRatio * imgH;
+            } else {
+              // Automatic collision-free calculation
+              bestX = originPxX + 45;
+              bestY = originPxY - 30;
+              let foundSafePos = false;
 
-                const box = {
-                  l: candidateX - nodeImgW / 2 - 2,
-                  r: candidateX + nodeImgW / 2 + 2,
-                  t: candidateY - nodeImgH / 2 - 2,
-                  b: candidateY + nodeImgH / 2 + 2
-                };
+              for (const d of distSteps) {
+                for (const deg of baseAngles) {
+                  const shiftedDeg = deg + (pinIdx * 28);
+                  const rad = (shiftedDeg * Math.PI) / 180;
+                  const candidateX = originPxX + Math.cos(rad) * d;
+                  const candidateY = originPxY + Math.sin(rad) * d;
 
-                if (!hasCollision(box)) {
-                  bestX = candidateX;
-                  bestY = candidateY;
-                  placedBoxes.push(box);
-                  foundSafePos = true;
-                  break;
+                  const box = {
+                    l: candidateX - nodeImgW / 2 - 2,
+                    r: candidateX + nodeImgW / 2 + 2,
+                    t: candidateY - nodeImgH / 2 - 2,
+                    b: candidateY + nodeImgH / 2 + 2
+                  };
+
+                  if (!hasCollision(box)) {
+                    bestX = candidateX;
+                    bestY = candidateY;
+                    placedBoxes.push(box);
+                    foundSafePos = true;
+                    break;
+                  }
                 }
+                if (foundSafePos) break;
               }
-              if (foundSafePos) break;
-            }
 
-            if (!foundSafePos) {
-              const rad = ((-30 + pinIdx * 35) * Math.PI) / 180;
-              bestX = originPxX + Math.cos(rad) * (50 + pinIdx * 30);
-              bestY = originPxY + Math.sin(rad) * (50 + pinIdx * 30);
-              placedBoxes.push({
-                l: bestX - nodeImgW/2,
-                r: bestX + nodeImgW/2,
-                t: bestY - nodeImgH/2,
-                b: bestY + nodeImgH/2
-              });
+              if (!foundSafePos) {
+                const rad = ((-30 + pinIdx * 35) * Math.PI) / 180;
+                bestX = originPxX + Math.cos(rad) * (50 + pinIdx * 30);
+                bestY = originPxY + Math.sin(rad) * (50 + pinIdx * 30);
+                placedBoxes.push({
+                  l: bestX - nodeImgW/2,
+                  r: bestX + nodeImgW/2,
+                  t: bestY - nodeImgH/2,
+                  b: bestY + nodeImgH/2
+                });
+              }
             }
 
             // Draw Leader Line in SVG
+            let leaderPath = null;
+            let leaderJoint = null;
             if (!isDimmed && isVisible) {
               const midX = (originPxX + bestX) / 2;
-              const midY = (originPxY + bestY) / 2;
+              leaderPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+              leaderPath.setAttribute('d', `M ${originPxX} ${originPxY} Q ${midX} ${originPxY} ${bestX} ${bestY}`);
+              leaderPath.setAttribute('stroke', isConfirmed ? '#22c55e' : 'rgba(56, 189, 248, 0.85)');
+              leaderPath.setAttribute('stroke-width', (1.5 / Math.min(state.scale, 2.5)).toFixed(1));
+              leaderPath.setAttribute('fill', 'none');
+              leaderPath.setAttribute('stroke-linecap', 'round');
+              svgLayer.appendChild(leaderPath);
 
-              const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-              path.setAttribute('d', `M ${originPxX} ${originPxY} Q ${midX} ${originPxY} ${bestX} ${bestY}`);
-              path.setAttribute('stroke', isConfirmed ? '#22c55e' : 'rgba(56, 189, 248, 0.85)');
-              path.setAttribute('stroke-width', (1.5 / Math.min(state.scale, 2.5)).toFixed(1));
-              path.setAttribute('fill', 'none');
-              path.setAttribute('stroke-linecap', 'round');
-              svgLayer.appendChild(path);
-
-              const jointCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-              jointCircle.setAttribute('cx', bestX);
-              jointCircle.setAttribute('cy', bestY);
-              jointCircle.setAttribute('r', (2.5 / Math.min(state.scale, 2.5)).toFixed(1));
-              jointCircle.setAttribute('fill', rankColor);
-              svgLayer.appendChild(jointCircle);
+              leaderJoint = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+              leaderJoint.setAttribute('cx', bestX);
+              leaderJoint.setAttribute('cy', bestY);
+              leaderJoint.setAttribute('r', (2.5 / Math.min(state.scale, 2.5)).toFixed(1));
+              leaderJoint.setAttribute('fill', rankColor);
+              svgLayer.appendChild(leaderJoint);
             }
 
-            // Extract the exact fields requested by user:
             const last3 = getRecordLast3(pin.recordNo);
             const memberCode = getMemberShortCode(pin.member);
             const locStreet = formatLocationStreet(pin.location, pin.streetFrom, pin.streetTo);
 
-            // HTML Callout Node (Information Card at line tip)
+            // HTML Callout Node (Information Card)
             const nodeEl = document.createElement('div');
             nodeEl.className = `callout-node ${!isVisible ? 'dimmed' : ''} ${isConfirmed ? 'is-confirmed' : ''}`;
             nodeEl.style.left = `${(bestX / imgW) * 100}%`;
@@ -1236,14 +1270,110 @@
               </div>
             `;
 
-            // Tap Callout -> Opens 3. Detail Bottom Sheet
-            nodeEl.addEventListener('click', (e) => {
-              e.stopPropagation();
-              openBottomSheet(clusterIdx, pinIdx);
-            });
+            // Long Press & Drag Handler for Callout Node
+            attachLongPressDrag(nodeEl, pin, originPxX, originPxY, imgW, imgH, leaderPath, leaderJoint, clusterIdx, pinIdx);
 
             pinsLayer.appendChild(nodeEl);
           });
+        }
+      });
+    }
+
+    // Long Press & Drag Implementation
+    function attachLongPressDrag(nodeEl, pin, originPxX, originPxY, imgW, imgH, leaderPath, leaderJoint, clusterIdx, pinIdx) {
+      let pressTimer = null;
+      let isDragging = false;
+      let startClientX = 0, startClientY = 0;
+      let startNodeX = 0, startNodeY = 0;
+
+      function startPress(clientX, clientY) {
+        startClientX = clientX;
+        startClientY = clientY;
+        const currentLeftRatio = parseFloat(nodeEl.style.left) / 100;
+        const currentTopRatio = parseFloat(nodeEl.style.top) / 100;
+        startNodeX = currentLeftRatio * imgW;
+        startNodeY = currentTopRatio * imgH;
+
+        pressTimer = setTimeout(() => {
+          isDragging = true;
+          nodeEl.classList.add('is-dragging');
+          if (navigator.vibrate) navigator.vibrate(40);
+        }, 320); // 320ms for long press
+      }
+
+      function moveDrag(clientX, clientY) {
+        if (!isDragging) {
+          // If moved before timer fires, cancel long press (normal pan)
+          if (Math.hypot(clientX - startClientX, clientY - startClientY) > 8) {
+            clearTimeout(pressTimer);
+          }
+          return;
+        }
+
+        // Calculate delta in image pixel coordinates
+        const deltaX = (clientX - startClientX) / state.scale;
+        const deltaY = (clientY - startClientY) / state.scale;
+        const curPxX = startNodeX + deltaX;
+        const curPxY = startNodeY + deltaY;
+
+        nodeEl.style.left = `${(curPxX / imgW) * 100}%`;
+        nodeEl.style.top = `${(curPxY / imgH) * 100}%`;
+
+        // Update leader line live
+        if (leaderPath && leaderJoint) {
+          const midX = (originPxX + curPxX) / 2;
+          leaderPath.setAttribute('d', `M ${originPxX} ${originPxY} Q ${midX} ${originPxY} ${curPxX} ${curPxY}`);
+          leaderJoint.setAttribute('cx', curPxX);
+          leaderJoint.setAttribute('cy', curPxY);
+        }
+      }
+
+      function endDrag() {
+        clearTimeout(pressTimer);
+        if (isDragging) {
+          isDragging = false;
+          nodeEl.classList.remove('is-dragging');
+          const finalXRatio = parseFloat(nodeEl.style.left) / 100;
+          const finalYRatio = parseFloat(nodeEl.style.top) / 100;
+          state.customNodePositions[pin.pinId] = { xRatio: finalXRatio, yRatio: finalYRatio };
+          saveCustomPositions();
+        }
+      }
+
+      // Touch events
+      nodeEl.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+          startPress(e.touches[0].clientX, e.touches[0].clientY);
+        }
+      }, { passive: true });
+
+      window.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 1) {
+          moveDrag(e.touches[0].clientX, e.touches[0].clientY);
+        }
+      }, { passive: true });
+
+      window.addEventListener('touchend', endDrag);
+
+      // Mouse events for testing
+      nodeEl.addEventListener('mousedown', (e) => {
+        e.stopPropagation();
+        startPress(e.clientX, e.clientY);
+        const onMouseMove = (ev) => moveDrag(ev.clientX, ev.clientY);
+        const onMouseUp = () => {
+          endDrag();
+          window.removeEventListener('mousemove', onMouseMove);
+          window.removeEventListener('mouseup', onMouseUp);
+        };
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+      });
+
+      // Regular Tap -> Open Detail Bottom Sheet (only if not dragged)
+      nodeEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!isDragging) {
+          openBottomSheet(clusterIdx, pinIdx);
         }
       });
     }
@@ -1428,9 +1558,9 @@
       if (isCallout !== previousScaleState) {
         previousScaleState = isCallout;
         renderOverlays();
-      } else if (isCallout) {
+      } else {
         clearTimeout(renderDebounceTimer);
-        renderDebounceTimer = setTimeout(renderOverlays, 100);
+        renderDebounceTimer = setTimeout(renderOverlays, 80);
       }
     }
 
@@ -1478,6 +1608,7 @@
 
     function setupGestures() {
       viewport.addEventListener('touchstart', (e) => {
+        if (e.target.closest('.callout-node')) return; // handled by node drag
         if (e.touches.length === 1) {
           isTouching = true;
           startX = e.touches[0].clientX - state.panX;
@@ -1509,6 +1640,9 @@
           state.panX = e.touches[0].clientX - startX;
           state.panY = e.touches[0].clientY - startY;
           applyTransform();
+          // Debounced culling update on pan
+          clearTimeout(renderDebounceTimer);
+          renderDebounceTimer = setTimeout(renderOverlays, 60);
         } else if (e.touches.length === 2) {
           const currentDist = Math.hypot(
             e.touches[0].clientX - e.touches[1].clientX,
@@ -1528,6 +1662,7 @@
       viewport.addEventListener('touchend', () => {
         isTouching = false;
         initialDist = 0;
+        renderOverlays();
       });
 
       // Mouse support
@@ -1543,8 +1678,15 @@
         state.panX = e.clientX - startX;
         state.panY = e.clientY - startY;
         applyTransform();
+        clearTimeout(renderDebounceTimer);
+        renderDebounceTimer = setTimeout(renderOverlays, 60);
       });
-      window.addEventListener('mouseup', () => { isMouseDown = false; });
+      window.addEventListener('mouseup', () => {
+        if (isMouseDown) {
+          isMouseDown = false;
+          renderOverlays();
+        }
+      });
       viewport.addEventListener('wheel', (e) => {
         e.preventDefault();
         const factor = e.deltaY < 0 ? 1.15 : 0.85;
