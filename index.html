@@ -277,7 +277,7 @@
       z-index: 12;
     }
 
-    /* Stacked Cluster Callout Card (Neat non-overlapping box) */
+    /* Stacked Cluster Callout Card */
     .callout-card-cluster {
       position: absolute;
       transform: translate(-50%, -50%);
@@ -312,7 +312,7 @@
     .callout-item-row {
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 6px;
       padding: 4px 8px 4px 6px;
       border-bottom: 1px solid rgba(255,255,255,0.08);
       cursor: pointer;
@@ -348,7 +348,7 @@
     .callout-text-info {
       display: flex;
       flex-direction: column;
-      line-height: 1.15;
+      line-height: 1.18;
       pointer-events: none;
     }
 
@@ -372,6 +372,13 @@
       background: rgba(255,255,255,0.15);
       padding: 0 3px;
       border-radius: 3px;
+    }
+
+    .callout-size-thick {
+      font-size: 10px;
+      font-weight: 700;
+      color: #fde047;
+      letter-spacing: -0.2px;
     }
 
     .callout-location-row {
@@ -1032,8 +1039,28 @@
     // Helper: Extract short member code inside parentheses ()
     function getMemberShortCode(member) {
       if (!member) return '';
-      const match = member.match(/\(([^)]+)\)/);
+      const match = member.match(/[（(]([^）)]+)[）)]/);
       return match ? match[1] : member.slice(0, 4);
+    }
+
+    // Helper: Extract memberSize () content and combine with measuredThicknessMm (e.g. "G3(5.4mm)" or "G3(0)")
+    function formatMemberSizeWithThickness(memberSize, measuredThicknessMm) {
+      let sizeLabel = '';
+      if (memberSize) {
+        const match = memberSize.match(/[（(]([^）)]+)[）)]/);
+        sizeLabel = match ? match[1].trim() : memberSize.trim();
+      }
+      
+      let thickText = '0';
+      if (measuredThicknessMm && String(measuredThicknessMm).trim() !== '') {
+        thickText = `${String(measuredThicknessMm).trim()}mm`;
+      }
+
+      if (sizeLabel) {
+        return `${sizeLabel}(${thickText})`;
+      } else {
+        return `(${thickText})`;
+      }
     }
 
     // Helper: Shorten Location ("門型柱 Y12" -> "Y12門", "X1通り" -> "X1通")
@@ -1187,8 +1214,8 @@
           pinsLayer.appendChild(anchorEl);
 
           const itemCount = Math.max(visiblePins.length, 1);
-          const nodeScreenW = 135;
-          const nodeScreenH = Math.min(itemCount * 32, 140);
+          const nodeScreenW = 145;
+          const nodeScreenH = Math.min(itemCount * 32, 150);
           const nodeImgW = nodeScreenW / state.scale;
           const nodeImgH = nodeScreenH / state.scale;
 
@@ -1297,6 +1324,7 @@
             const rankColor = getRankBadgeBg(pin.corrosionRank);
             const last3 = getRecordLast3(pin.recordNo);
             const memberCode = getMemberShortCode(pin.member);
+            const sizeThickText = formatMemberSizeWithThickness(pin.memberSize, pin.measuredThicknessMm);
             const locStreetLevel = formatLocationStreetLevel(pin.location, pin.streetFrom, pin.streetTo, pin.level);
 
             rowsHtml += `
@@ -1308,6 +1336,7 @@
                   <div class="callout-main-row">
                     <span class="callout-num-badge">#${last3}</span>
                     ${memberCode ? `<span class="callout-member-code">${memberCode}</span>` : ''}
+                    <span class="callout-size-thick">${sizeThickText}</span>
                     ${isConfirmed ? '<span class="callout-check-mark">✓</span>' : ''}
                   </div>
                   <div class="callout-location-row">
@@ -1454,10 +1483,11 @@
           const isConfirmed = state.confirmedPinIds.has(p.pinId);
           const last3 = getRecordLast3(p.recordNo);
           const memberCode = getMemberShortCode(p.member);
+          const sizeThickText = formatMemberSizeWithThickness(p.memberSize, p.measuredThicknessMm);
           tab.className = `cluster-tab-pill ${idx === pinIdx ? 'active' : ''}`;
           tab.innerHTML = `
             <span style="background:${getRankBadgeBg(p.corrosionRank)}; color:white; padding:1px 4px; border-radius:3px; font-size:9px;">${p.corrosionRank || '-'}</span>
-            <span>#${last3} ${memberCode}</span>
+            <span>#${last3} ${memberCode} ${sizeThickText}</span>
             ${isConfirmed ? '<span>✓</span>' : ''}
           `;
           tab.addEventListener('click', () => openBottomSheet(clusterIdx, idx));
@@ -1560,6 +1590,7 @@
         const isConfirmed = state.confirmedPinIds.has(pin.pinId);
         const last3 = getRecordLast3(pin.recordNo);
         const memberCode = getMemberShortCode(pin.member);
+        const sizeThickText = formatMemberSizeWithThickness(pin.memberSize, pin.measuredThicknessMm);
         const locStreetLevel = formatLocationStreetLevel(pin.location, pin.streetFrom, pin.streetTo, pin.level);
 
         const card = document.createElement('div');
@@ -1572,7 +1603,7 @@
               ${isConfirmed ? '<span style="color:var(--accent-green); font-size:11px; font-weight:bold;">✓ 済</span>' : ''}
             </div>
             <div style="font-size:11px; color:var(--text-muted);">
-              ${memberCode ? `[${memberCode}] ` : ''}${locStreetLevel}
+              ${memberCode ? `[${memberCode}] ` : ''}${sizeThickText} | ${locStreetLevel}
             </div>
           </div>
           <div style="font-size:13px; font-weight:700; color:var(--accent-blue);">
@@ -1828,7 +1859,7 @@
 
     function exportStatusCsv() {
       const rows = [
-        ['recordNo', 'pinType', 'corrosionRank', 'member', 'location', 'streetFrom', 'streetTo', 'level', 'measuredThicknessMm', 'isConfirmed']
+        ['recordNo', 'pinType', 'corrosionRank', 'member', 'memberSize', 'location', 'streetFrom', 'streetTo', 'level', 'measuredThicknessMm', 'isConfirmed']
       ];
       state.allPins.forEach(p => {
         rows.push([
@@ -1836,6 +1867,7 @@
           `"${p.pinType || ''}"`,
           `"${p.corrosionRank || ''}"`,
           `"${p.member || ''}"`,
+          `"${p.memberSize || ''}"`,
           `"${p.location || ''}"`,
           `"${p.streetFrom || ''}"`,
           `"${p.streetTo || ''}"`,
