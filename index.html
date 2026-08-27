@@ -221,8 +221,8 @@
       transform: translate(-50%, -50%);
       pointer-events: auto;
       cursor: pointer;
-      padding: 8px;
-      margin: -8px;
+      padding: 10px;
+      margin: -10px;
       z-index: 10;
       transition: transform 0.15s ease, opacity 0.15s ease;
     }
@@ -262,20 +262,26 @@
       border: 1px solid #0f172a;
     }
 
-    /* Detailed Callout Style with Leader Line (Zoom >= Threshold) */
+    /* Anchor Point at Defect Spot */
     .callout-anchor-point {
       position: absolute;
-      width: 8px;
-      height: 8px;
+      width: 10px;
+      height: 10px;
       border-radius: 50%;
       background: #ffffff;
       border: 2px solid #0284c7;
       transform: translate(-50%, -50%);
-      box-shadow: 0 0 6px rgba(56,189,248,0.8);
+      box-shadow: 0 0 8px rgba(56,189,248,0.9);
       pointer-events: auto;
       cursor: pointer;
+      z-index: 12;
     }
 
+    .callout-anchor-point:active {
+      transform: translate(-50%, -50%) scale(1.5);
+    }
+
+    /* Detailed Callout Node with Collision-free Placement */
     .callout-node {
       position: absolute;
       transform: translate(-50%, -50%);
@@ -285,23 +291,25 @@
       display: flex;
       align-items: center;
       gap: 5px;
-      background: rgba(19, 27, 46, 0.92);
-      backdrop-filter: blur(4px);
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(6px);
       border: 1.5px solid var(--border-color);
-      border-radius: 20px;
+      border-radius: 18px;
       padding: 3px 8px 3px 4px;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.6);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.7);
       white-space: nowrap;
-      transition: transform 0.15s ease, border-color 0.15s ease;
+      transition: transform 0.15s ease, border-color 0.15s ease, opacity 0.2s ease;
     }
 
     .callout-node:active {
       transform: translate(-50%, -50%) scale(1.15);
       border-color: var(--accent-blue);
+      z-index: 25;
     }
 
     .callout-node.is-confirmed {
       border-color: #22c55e;
+      background: rgba(20, 83, 45, 0.85);
     }
 
     .callout-rank-circle {
@@ -315,12 +323,13 @@
       font-size: 10px;
       font-weight: 900;
       flex-shrink: 0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
     }
 
     .callout-text-info {
       display: flex;
       flex-direction: column;
-      line-height: 1.1;
+      line-height: 1.15;
     }
 
     .callout-record-no {
@@ -331,19 +340,19 @@
 
     .callout-sub-info {
       font-size: 9px;
-      color: var(--text-muted);
+      color: #cbd5e1;
     }
 
     .callout-check-mark {
-      color: var(--accent-green);
-      font-size: 11px;
+      color: #4ade80;
+      font-size: 12px;
       font-weight: bold;
       margin-left: 2px;
     }
 
-    .map-pin.dimmed, .callout-node.dimmed {
-      opacity: 0.12;
-      filter: grayscale(0.9);
+    .compact-pin.dimmed, .callout-node.dimmed, .callout-anchor-point.dimmed {
+      opacity: 0.1;
+      filter: grayscale(0.95);
       pointer-events: none;
     }
 
@@ -386,13 +395,17 @@
       left: 12px;
       bottom: 16px;
       background: rgba(19, 27, 46, 0.85);
+      backdrop-filter: blur(4px);
       border: 1px solid var(--border-color);
       border-radius: 12px;
-      padding: 4px 10px;
+      padding: 5px 12px;
       font-size: 11px;
       color: var(--text-muted);
       pointer-events: none;
       z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
 
     /* Mobile Bottom Sheet (Modal for Detail) */
@@ -790,14 +803,17 @@
   <main class="viewport" id="viewport">
     <div class="canvas-container" id="canvasContainer">
       <img id="overviewImg" class="overview-image" alt="全景写真" src="">
-      <!-- SVG Lines for Callouts -->
+      <!-- SVG Lines for Leader Callouts -->
       <svg class="svg-lines-layer" id="svgLinesLayer"></svg>
       <!-- HTML Pins & Callouts Layer -->
       <div class="pins-layer" id="pinsLayer"></div>
     </div>
 
     <!-- Zoom Hint Badge -->
-    <div class="zoom-hint-badge" id="zoomHintBadge">全体表示（拡大で詳細線を表示）</div>
+    <div class="zoom-hint-badge" id="zoomHintBadge">
+      <span>🔍</span>
+      <span id="zoomHintText">全体表示（拡大で引き出し線表示）</span>
+    </div>
 
     <!-- Touch Floating Action Buttons -->
     <div class="canvas-overlay-controls">
@@ -910,7 +926,7 @@
     };
 
     // Zoom threshold to switch between compact pin and leader-line callout mode
-    const CALLOUT_ZOOM_THRESHOLD = 1.35;
+    const CALLOUT_ZOOM_THRESHOLD = 1.4;
 
     const STORAGE_KEY = 'kagacheck_confirmed_pins_v1';
 
@@ -961,7 +977,7 @@
     // Build Clusters for close pins
     function buildClusters(pins) {
       const clusters = [];
-      const threshold = 0.004;
+      const threshold = 0.0035;
 
       pins.forEach(pin => {
         let added = false;
@@ -994,7 +1010,7 @@
       return true;
     }
 
-    // Render Pin & Leader Lines Overlays depending on Zoom Level
+    // Collision-free Leader Line & Callout Placement Algorithm
     function renderOverlays() {
       const isCalloutMode = state.scale >= CALLOUT_ZOOM_THRESHOLD;
       const pinsLayer = document.getElementById('pinsLayer');
@@ -1002,22 +1018,32 @@
       pinsLayer.innerHTML = '';
       svgLayer.innerHTML = '';
 
-      const zoomHint = document.getElementById('zoomHintBadge');
+      const zoomHintText = document.getElementById('zoomHintText');
       if (isCalloutMode) {
-        zoomHint.textContent = `詳細表示モード (${Math.round(state.scale * 100)}%)`;
-        zoomHint.style.color = 'var(--accent-blue)';
+        zoomHintText.textContent = `詳細表示 (${Math.round(state.scale * 100)}%)`;
       } else {
-        zoomHint.textContent = `全体表示（拡大で引き出し線表示）`;
-        zoomHint.style.color = 'var(--text-muted)';
+        zoomHintText.textContent = `全体表示（拡大で引き出し線表示）`;
       }
 
       const imgW = overviewImg.naturalWidth || 1000;
       const imgH = overviewImg.naturalHeight || 1000;
 
-      // Set SVG viewBox to match native image dimensions
       svgLayer.setAttribute('viewBox', `0 0 ${imgW} ${imgH}`);
       svgLayer.setAttribute('width', imgW);
       svgLayer.setAttribute('height', imgH);
+
+      // Store occupied bounding boxes in image pixel space for collision avoidance
+      const placedBoxes = [];
+
+      // Check if candidate box collides with existing placed boxes
+      function hasCollision(candidateBox) {
+        for (const b of placedBoxes) {
+          const overlapX = Math.max(0, Math.min(candidateBox.r, b.r) - Math.max(candidateBox.l, b.l));
+          const overlapY = Math.max(0, Math.min(candidateBox.b, b.b) - Math.max(candidateBox.t, b.t));
+          if (overlapX > 0 && overlapY > 0) return true;
+        }
+        return false;
+      }
 
       state.clusters.forEach((cluster, clusterIdx) => {
         const matchingPins = cluster.pins.filter(isPinVisible);
@@ -1053,7 +1079,7 @@
           pinsLayer.appendChild(pinEl);
 
         } else {
-          // --- LEADER LINE & CALLOUT MODE (Zoom >= Threshold) ---
+          // --- NON-OVERLAPPING LEADER LINE CALLOUT MODE (Zoom >= Threshold) ---
           // Anchor point at actual defect spot
           const anchorEl = document.createElement('div');
           anchorEl.className = `callout-anchor-point ${isDimmed ? 'dimmed' : ''}`;
@@ -1065,55 +1091,94 @@
           });
           pinsLayer.appendChild(anchorEl);
 
-          // Fan out lines for each record in cluster
-          const count = cluster.pins.length;
-          // Radians base: default diagonal upwards-right (around -35 to +35 degrees from horizontal)
-          const baseDist = 55; // Line distance in native pixels
+          // Card dimensions in native image pixel coordinates (scaled by current zoom)
+          // Average node width: ~110px on screen -> in image pixels = 110 / state.scale
+          const nodeScreenW = 100;
+          const nodeScreenH = 26;
+          const nodeImgW = nodeScreenW / state.scale;
+          const nodeImgH = nodeScreenH / state.scale;
+
+          // Candidate angle patterns for staggering and multi-item clusters
+          // Alternating quadrant by cluster index (even: upper-right, odd: lower-right, etc.)
+          const baseAngles = clusterIdx % 2 === 0 ? [-35, 35, -65, 65, -10, 10, -145, 145] : [35, -35, 65, -65, 10, -10, 145, -145];
+          const distSteps = [40, 70, 100, 130, 160]; // Distance steps in image pixels
 
           cluster.pins.forEach((pin, pinIdx) => {
             const isVisible = isPinVisible(pin);
             const isConfirmed = state.confirmedPinIds.has(pin.pinId);
             const rankColor = getRankBadgeBg(pin.corrosionRank);
 
-            // Compute angle spread
-            let angleDeg = -30;
-            if (count > 1) {
-              const step = 60 / (count - 1);
-              angleDeg = -45 + (pinIdx * step);
+            // Find best non-overlapping position
+            let bestX = originPxX + 45;
+            let bestY = originPxY - 30;
+            let foundSafePos = false;
+
+            for (const d of distSteps) {
+              for (const deg of baseAngles) {
+                const shiftedDeg = deg + (pinIdx * 25);
+                const rad = (shiftedDeg * Math.PI) / 180;
+                const candidateX = originPxX + Math.cos(rad) * d;
+                const candidateY = originPxY + Math.sin(rad) * d;
+
+                const box = {
+                  l: candidateX - nodeImgW / 2 - 2,
+                  r: candidateX + nodeImgW / 2 + 2,
+                  t: candidateY - nodeImgH / 2 - 2,
+                  b: candidateY + nodeImgH / 2 + 2
+                };
+
+                if (!hasCollision(box)) {
+                  bestX = candidateX;
+                  bestY = candidateY;
+                  placedBoxes.push(box);
+                  foundSafePos = true;
+                  break;
+                }
+              }
+              if (foundSafePos) break;
             }
-            const angleRad = (angleDeg * Math.PI) / 180;
-            const targetPxX = originPxX + Math.cos(angleRad) * (baseDist + pinIdx * 8);
-            const targetPxY = originPxY + Math.sin(angleRad) * (baseDist + pinIdx * 8);
+
+            if (!foundSafePos) {
+              // Fallback staggered offset
+              const rad = ((-30 + pinIdx * 35) * Math.PI) / 180;
+              bestX = originPxX + Math.cos(rad) * (50 + pinIdx * 30);
+              bestY = originPxY + Math.sin(rad) * (50 + pinIdx * 30);
+              placedBoxes.push({
+                l: bestX - nodeImgW/2,
+                r: bestX + nodeImgW/2,
+                t: bestY - nodeImgH/2,
+                b: bestY + nodeImgH/2
+              });
+            }
 
             // Draw Leader Line in SVG
             if (!isDimmed && isVisible) {
-              const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-              line.setAttribute('x1', originPxX);
-              line.setAttribute('y1', originPxY);
-              line.setAttribute('x2', targetPxX);
-              line.setAttribute('y2', targetPxY);
-              line.setAttribute('stroke', isConfirmed ? '#22c55e' : '#38bdf8');
-              line.setAttribute('stroke-width', '2');
-              line.setAttribute('stroke-linecap', 'round');
-              line.setAttribute('opacity', '0.85');
-              svgLayer.appendChild(line);
+              // Polyline with joint
+              const midX = (originPxX + bestX) / 2;
+              const midY = (originPxY + bestY) / 2;
 
-              // Small dot at joint
-              const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-              circle.setAttribute('cx', targetPxX);
-              circle.setAttribute('cy', targetPxY);
-              circle.setAttribute('r', '3');
-              circle.setAttribute('fill', rankColor);
-              svgLayer.appendChild(circle);
+              const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+              path.setAttribute('d', `M ${originPxX} ${originPxY} Q ${midX} ${originPxY} ${bestX} ${bestY}`);
+              path.setAttribute('stroke', isConfirmed ? '#22c55e' : 'rgba(56, 189, 248, 0.85)');
+              path.setAttribute('stroke-width', (1.5 / Math.min(state.scale, 2.5)).toFixed(1));
+              path.setAttribute('fill', 'none');
+              path.setAttribute('stroke-linecap', 'round');
+              svgLayer.appendChild(path);
+
+              const jointCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+              jointCircle.setAttribute('cx', bestX);
+              jointCircle.setAttribute('cy', bestY);
+              jointCircle.setAttribute('r', (2.5 / Math.min(state.scale, 2.5)).toFixed(1));
+              jointCircle.setAttribute('fill', rankColor);
+              svgLayer.appendChild(jointCircle);
             }
 
             // HTML Callout Node (Info Card at line tip)
             const nodeEl = document.createElement('div');
             nodeEl.className = `callout-node ${!isVisible ? 'dimmed' : ''} ${isConfirmed ? 'is-confirmed' : ''}`;
-            nodeEl.style.left = `${(targetPxX / imgW) * 100}%`;
-            nodeEl.style.top = `${(targetPxY / imgH) * 100}%`;
+            nodeEl.style.left = `${(bestX / imgW) * 100}%`;
+            nodeEl.style.top = `${(bestY / imgH) * 100}%`;
 
-            const shortRecordNo = pin.recordNo ? pin.recordNo.replace(/.*-/, '') : `#${pinIdx+1}`;
             const thicknessText = pin.measuredThicknessMm ? `${pin.measuredThicknessMm}mm` : '';
 
             nodeEl.innerHTML = `
@@ -1299,6 +1364,7 @@
     }
 
     let previousScaleState = false;
+    let renderDebounceTimer = null;
 
     function zoomAt(factor, cx, cy) {
       const newScale = Math.min(Math.max(state.scale * factor, 0.25), 15);
@@ -1308,11 +1374,15 @@
       state.scale = newScale;
       applyTransform();
 
-      // Check if crossed threshold
+      // Check if crossed threshold or need re-calculation of collision boxes
       const isCallout = state.scale >= CALLOUT_ZOOM_THRESHOLD;
       if (isCallout !== previousScaleState) {
         previousScaleState = isCallout;
         renderOverlays();
+      } else if (isCallout) {
+        // Debounced layout update for smooth zooming
+        clearTimeout(renderDebounceTimer);
+        renderDebounceTimer = setTimeout(renderOverlays, 100);
       }
     }
 
@@ -1343,8 +1413,7 @@
       const vw = viewport.clientWidth;
       const vh = viewport.clientHeight;
 
-      // Automatically zoom into callout view when tapping or selecting pin
-      state.scale = Math.max(state.scale, 2.0);
+      state.scale = Math.max(state.scale, 2.2);
       state.panX = vw / 2 - targetX * state.scale;
       state.panY = vh * 0.35 - targetY * state.scale; // Bias upward for bottom sheet
       applyTransform();
@@ -1360,14 +1429,12 @@
     let lastTapTime = 0;
 
     function setupGestures() {
-      // Touch events (Pinch / Drag)
       viewport.addEventListener('touchstart', (e) => {
         if (e.touches.length === 1) {
           isTouching = true;
           startX = e.touches[0].clientX - state.panX;
           startY = e.touches[0].clientY - state.panY;
 
-          // Double tap to zoom
           const now = Date.now();
           if (now - lastTapTime < 300) {
             const rect = viewport.getBoundingClientRect();
@@ -1376,7 +1443,7 @@
             if (state.scale >= CALLOUT_ZOOM_THRESHOLD) {
               fitToScreen();
             } else {
-              zoomAt(2.5, cx, cy);
+              zoomAt(2.8, cx, cy);
             }
           }
           lastTapTime = now;
@@ -1415,7 +1482,7 @@
         initialDist = 0;
       });
 
-      // Mouse support for testing
+      // Mouse support
       let isMouseDown = false;
       viewport.addEventListener('mousedown', (e) => {
         if (e.target.closest('.compact-pin, .callout-node, .callout-anchor-point')) return;
@@ -1438,15 +1505,15 @@
       }, { passive: false });
     }
 
-    // UI Action Event Listeners
+    // UI Actions Setup
     function setupActions() {
       // Zoom FAB buttons
       document.getElementById('btnFitScreen').addEventListener('click', fitToScreen);
       document.getElementById('btnZoomIn').addEventListener('click', () => {
-        zoomAt(1.35, viewport.clientWidth / 2, viewport.clientHeight / 2);
+        zoomAt(1.4, viewport.clientWidth / 2, viewport.clientHeight / 2);
       });
       document.getElementById('btnZoomOut').addEventListener('click', () => {
-        zoomAt(0.75, viewport.clientWidth / 2, viewport.clientHeight / 2);
+        zoomAt(0.72, viewport.clientWidth / 2, viewport.clientHeight / 2);
       });
 
       // Filter chips (Rank)
