@@ -193,7 +193,18 @@
       pointer-events: none;
     }
 
-    /* Touch-optimized Pins */
+    /* SVG Overlay Layer for Leader Lines */
+    .svg-lines-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    /* Touch-optimized Pins Layer */
     .pins-layer {
       position: absolute;
       top: 0;
@@ -201,75 +212,137 @@
       width: 100%;
       height: 100%;
       pointer-events: none;
+      z-index: 10;
     }
 
-    .map-pin {
+    /* Compact Pin Style (Zoom < Threshold) */
+    .compact-pin {
       position: absolute;
-      transform: translate(-50%, -100%);
+      transform: translate(-50%, -50%);
       pointer-events: auto;
       cursor: pointer;
+      padding: 8px;
+      margin: -8px;
       z-index: 10;
-      padding: 10px; /* Expand touch hitbox */
-      margin: -10px;
+      transition: transform 0.15s ease, opacity 0.15s ease;
     }
 
-    .pin-marker {
-      width: 28px;
-      height: 36px;
+    .compact-pin:active {
+      transform: translate(-50%, -50%) scale(1.4);
+    }
+
+    .compact-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 2px solid #ffffff;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.8);
+      position: relative;
+    }
+
+    .compact-pin.is-confirmed .compact-dot {
+      border-color: #22c55e;
+      box-shadow: 0 0 0 2px rgba(34,197,94,0.5);
+    }
+
+    .compact-pin-badge {
+      position: absolute;
+      top: -8px;
+      right: -8px;
+      background: #ffffff;
+      color: #0f172a;
+      font-size: 9px;
+      font-weight: 900;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      filter: drop-shadow(0 3px 6px rgba(0,0,0,0.7));
-      position: relative;
-      transition: transform 0.15s ease;
+      border: 1px solid #0f172a;
     }
 
-    .map-pin:active .pin-marker,
-    .map-pin.active .pin-marker {
-      transform: scale(1.3);
-    }
-
-    .pin-badge {
+    /* Detailed Callout Style with Leader Line (Zoom >= Threshold) */
+    .callout-anchor-point {
       position: absolute;
-      top: -3px;
-      right: -5px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
       background: #ffffff;
-      color: #0f172a;
-      font-size: 11px;
-      font-weight: 800;
+      border: 2px solid #0284c7;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 6px rgba(56,189,248,0.8);
+      pointer-events: auto;
+      cursor: pointer;
+    }
+
+    .callout-node {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      pointer-events: auto;
+      cursor: pointer;
+      z-index: 15;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(19, 27, 46, 0.92);
+      backdrop-filter: blur(4px);
+      border: 1.5px solid var(--border-color);
+      border-radius: 20px;
+      padding: 3px 8px 3px 4px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.6);
+      white-space: nowrap;
+      transition: transform 0.15s ease, border-color 0.15s ease;
+    }
+
+    .callout-node:active {
+      transform: translate(-50%, -50%) scale(1.15);
+      border-color: var(--accent-blue);
+    }
+
+    .callout-node.is-confirmed {
+      border-color: #22c55e;
+    }
+
+    .callout-rank-circle {
       width: 18px;
       height: 18px;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      border: 1.5px solid #0f172a;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.5);
-    }
-
-    .pin-checked-badge {
-      position: absolute;
-      top: -3px;
-      left: -5px;
-      background: #22c55e;
       color: white;
       font-size: 10px;
       font-weight: 900;
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .callout-text-info {
       display: flex;
-      align-items: center;
-      justify-content: center;
-      border: 1.5px solid #0f172a;
+      flex-direction: column;
+      line-height: 1.1;
     }
 
-    .map-pin.is-confirmed .pin-marker {
-      opacity: 0.85;
+    .callout-record-no {
+      font-size: 11px;
+      font-weight: 700;
+      color: #ffffff;
     }
 
-    .map-pin.dimmed {
-      opacity: 0.15;
+    .callout-sub-info {
+      font-size: 9px;
+      color: var(--text-muted);
+    }
+
+    .callout-check-mark {
+      color: var(--accent-green);
+      font-size: 11px;
+      font-weight: bold;
+      margin-left: 2px;
+    }
+
+    .map-pin.dimmed, .callout-node.dimmed {
+      opacity: 0.12;
       filter: grayscale(0.9);
       pointer-events: none;
     }
@@ -305,6 +378,21 @@
     .fab-btn:active {
       background: var(--accent-blue);
       color: #000;
+    }
+
+    /* Zoom Level Indicator */
+    .zoom-hint-badge {
+      position: absolute;
+      left: 12px;
+      bottom: 16px;
+      background: rgba(19, 27, 46, 0.85);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 4px 10px;
+      font-size: 11px;
+      color: var(--text-muted);
+      pointer-events: none;
+      z-index: 20;
     }
 
     /* Mobile Bottom Sheet (Modal for Detail) */
@@ -702,8 +790,14 @@
   <main class="viewport" id="viewport">
     <div class="canvas-container" id="canvasContainer">
       <img id="overviewImg" class="overview-image" alt="全景写真" src="">
+      <!-- SVG Lines for Callouts -->
+      <svg class="svg-lines-layer" id="svgLinesLayer"></svg>
+      <!-- HTML Pins & Callouts Layer -->
       <div class="pins-layer" id="pinsLayer"></div>
     </div>
+
+    <!-- Zoom Hint Badge -->
+    <div class="zoom-hint-badge" id="zoomHintBadge">全体表示（拡大で詳細線を表示）</div>
 
     <!-- Touch Floating Action Buttons -->
     <div class="canvas-overlay-controls">
@@ -815,6 +909,9 @@
       panY: 0
     };
 
+    // Zoom threshold to switch between compact pin and leader-line callout mode
+    const CALLOUT_ZOOM_THRESHOLD = 1.35;
+
     const STORAGE_KEY = 'kagacheck_confirmed_pins_v1';
 
     // LocalStorage
@@ -836,7 +933,7 @@
         console.warn(e);
       }
       updateProgress();
-      renderPins();
+      renderOverlays();
     }
 
     function updateProgress() {
@@ -864,7 +961,7 @@
     // Build Clusters for close pins
     function buildClusters(pins) {
       const clusters = [];
-      const threshold = 0.0035; // Touch cluster threshold
+      const threshold = 0.004;
 
       pins.forEach(pin => {
         let added = false;
@@ -888,64 +985,156 @@
       return clusters;
     }
 
-    // SVG Pin Icon
-    function createPinSvg(color) {
-      return `
-        <svg viewBox="0 0 28 36" width="28" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M14 0C6.26801 0 0 6.26801 0 14C0 23.5 14 36 14 36C14 36 28 23.5 28 14C28 6.26801 21.732 0 14 0Z" fill="${color}"/>
-          <circle cx="14" cy="13" r="6" fill="#ffffff"/>
-        </svg>
-      `;
+    // Filter check helper
+    function isPinVisible(pin) {
+      if (state.filterRank !== 'ALL' && pin.corrosionRank !== state.filterRank) return false;
+      const isConfirmed = state.confirmedPinIds.has(pin.pinId);
+      if (state.filterStatus === 'UNCONFIRMED' && isConfirmed) return false;
+      if (state.filterStatus === 'CONFIRMED' && !isConfirmed) return false;
+      return true;
     }
 
-    // Render Pins on Screen
-    function renderPins() {
-      const layer = document.getElementById('pinsLayer');
-      layer.innerHTML = '';
+    // Render Pin & Leader Lines Overlays depending on Zoom Level
+    function renderOverlays() {
+      const isCalloutMode = state.scale >= CALLOUT_ZOOM_THRESHOLD;
+      const pinsLayer = document.getElementById('pinsLayer');
+      const svgLayer = document.getElementById('svgLinesLayer');
+      pinsLayer.innerHTML = '';
+      svgLayer.innerHTML = '';
+
+      const zoomHint = document.getElementById('zoomHintBadge');
+      if (isCalloutMode) {
+        zoomHint.textContent = `詳細表示モード (${Math.round(state.scale * 100)}%)`;
+        zoomHint.style.color = 'var(--accent-blue)';
+      } else {
+        zoomHint.textContent = `全体表示（拡大で引き出し線表示）`;
+        zoomHint.style.color = 'var(--text-muted)';
+      }
+
+      const imgW = overviewImg.naturalWidth || 1000;
+      const imgH = overviewImg.naturalHeight || 1000;
+
+      // Set SVG viewBox to match native image dimensions
+      svgLayer.setAttribute('viewBox', `0 0 ${imgW} ${imgH}`);
+      svgLayer.setAttribute('width', imgW);
+      svgLayer.setAttribute('height', imgH);
 
       state.clusters.forEach((cluster, clusterIdx) => {
-        let matchingPins = cluster.pins.filter(pin => {
-          if (state.filterRank !== 'ALL' && pin.corrosionRank !== state.filterRank) return false;
-          const isConfirmed = state.confirmedPinIds.has(pin.pinId);
-          if (state.filterStatus === 'UNCONFIRMED' && isConfirmed) return false;
-          if (state.filterStatus === 'CONFIRMED' && !isConfirmed) return false;
-          return true;
-        });
-
+        const matchingPins = cluster.pins.filter(isPinVisible);
         const isDimmed = matchingPins.length === 0;
         const allConfirmed = cluster.pins.every(p => state.confirmedPinIds.has(p.pinId));
-        const someConfirmed = cluster.pins.some(p => state.confirmedPinIds.has(p.pinId));
 
-        const pinEl = document.createElement('div');
-        pinEl.className = `map-pin ${isDimmed ? 'dimmed' : ''} ${allConfirmed ? 'is-confirmed' : ''}`;
-        pinEl.style.left = `${cluster.xRatio * 100}%`;
-        pinEl.style.top = `${cluster.yRatio * 100}%`;
+        const originPxX = cluster.xRatio * imgW;
+        const originPxY = cluster.yRatio * imgH;
 
-        const primaryRank = cluster.pins[0].corrosionRank;
-        const pinColor = getRankBadgeBg(primaryRank);
+        if (!isCalloutMode) {
+          // --- COMPACT PIN MODE (Zoom < Threshold) ---
+          const pinEl = document.createElement('div');
+          pinEl.className = `compact-pin ${isDimmed ? 'dimmed' : ''} ${allConfirmed ? 'is-confirmed' : ''}`;
+          pinEl.style.left = `${cluster.xRatio * 100}%`;
+          pinEl.style.top = `${cluster.yRatio * 100}%`;
 
-        let badgeHtml = cluster.pins.length > 1 ? `<div class="pin-badge">${cluster.pins.length}</div>` : '';
-        let checkedHtml = '';
-        if (allConfirmed) {
-          checkedHtml = `<div class="pin-checked-badge">✓</div>`;
-        } else if (someConfirmed) {
-          checkedHtml = `<div class="pin-checked-badge" style="background:#0284c7;">·</div>`;
+          const primaryRank = cluster.pins[0].corrosionRank;
+          const pinColor = getRankBadgeBg(primaryRank);
+
+          let badgeHtml = cluster.pins.length > 1 ? `<div class="compact-pin-badge">${cluster.pins.length}</div>` : '';
+
+          pinEl.innerHTML = `
+            <div class="compact-dot" style="background: ${pinColor};">
+              ${badgeHtml}
+            </div>
+          `;
+
+          pinEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openBottomSheet(clusterIdx, 0);
+          });
+
+          pinsLayer.appendChild(pinEl);
+
+        } else {
+          // --- LEADER LINE & CALLOUT MODE (Zoom >= Threshold) ---
+          // Anchor point at actual defect spot
+          const anchorEl = document.createElement('div');
+          anchorEl.className = `callout-anchor-point ${isDimmed ? 'dimmed' : ''}`;
+          anchorEl.style.left = `${cluster.xRatio * 100}%`;
+          anchorEl.style.top = `${cluster.yRatio * 100}%`;
+          anchorEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openBottomSheet(clusterIdx, 0);
+          });
+          pinsLayer.appendChild(anchorEl);
+
+          // Fan out lines for each record in cluster
+          const count = cluster.pins.length;
+          // Radians base: default diagonal upwards-right (around -35 to +35 degrees from horizontal)
+          const baseDist = 55; // Line distance in native pixels
+
+          cluster.pins.forEach((pin, pinIdx) => {
+            const isVisible = isPinVisible(pin);
+            const isConfirmed = state.confirmedPinIds.has(pin.pinId);
+            const rankColor = getRankBadgeBg(pin.corrosionRank);
+
+            // Compute angle spread
+            let angleDeg = -30;
+            if (count > 1) {
+              const step = 60 / (count - 1);
+              angleDeg = -45 + (pinIdx * step);
+            }
+            const angleRad = (angleDeg * Math.PI) / 180;
+            const targetPxX = originPxX + Math.cos(angleRad) * (baseDist + pinIdx * 8);
+            const targetPxY = originPxY + Math.sin(angleRad) * (baseDist + pinIdx * 8);
+
+            // Draw Leader Line in SVG
+            if (!isDimmed && isVisible) {
+              const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+              line.setAttribute('x1', originPxX);
+              line.setAttribute('y1', originPxY);
+              line.setAttribute('x2', targetPxX);
+              line.setAttribute('y2', targetPxY);
+              line.setAttribute('stroke', isConfirmed ? '#22c55e' : '#38bdf8');
+              line.setAttribute('stroke-width', '2');
+              line.setAttribute('stroke-linecap', 'round');
+              line.setAttribute('opacity', '0.85');
+              svgLayer.appendChild(line);
+
+              // Small dot at joint
+              const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+              circle.setAttribute('cx', targetPxX);
+              circle.setAttribute('cy', targetPxY);
+              circle.setAttribute('r', '3');
+              circle.setAttribute('fill', rankColor);
+              svgLayer.appendChild(circle);
+            }
+
+            // HTML Callout Node (Info Card at line tip)
+            const nodeEl = document.createElement('div');
+            nodeEl.className = `callout-node ${!isVisible ? 'dimmed' : ''} ${isConfirmed ? 'is-confirmed' : ''}`;
+            nodeEl.style.left = `${(targetPxX / imgW) * 100}%`;
+            nodeEl.style.top = `${(targetPxY / imgH) * 100}%`;
+
+            const shortRecordNo = pin.recordNo ? pin.recordNo.replace(/.*-/, '') : `#${pinIdx+1}`;
+            const thicknessText = pin.measuredThicknessMm ? `${pin.measuredThicknessMm}mm` : '';
+
+            nodeEl.innerHTML = `
+              <div class="callout-rank-circle" style="background: ${rankColor};">
+                ${pin.corrosionRank || '-'}
+              </div>
+              <div class="callout-text-info">
+                <span class="callout-record-no">${pin.recordNo || ''}</span>
+                <span class="callout-sub-info">${pin.member || ''} ${thicknessText}</span>
+              </div>
+              ${isConfirmed ? '<span class="callout-check-mark">✓</span>' : ''}
+            `;
+
+            nodeEl.addEventListener('click', (e) => {
+              e.stopPropagation();
+              openBottomSheet(clusterIdx, pinIdx);
+            });
+
+            pinsLayer.appendChild(nodeEl);
+          });
         }
-
-        pinEl.innerHTML = `
-          <div class="pin-marker">
-            ${createPinSvg(pinColor)}
-            ${badgeHtml}
-            ${checkedHtml}
-          </div>
-        `;
-
-        pinEl.addEventListener('click', (e) => {
-          e.stopPropagation();
-          openBottomSheet(clusterIdx, 0);
-        });
-
-        layer.appendChild(pinEl);
       });
     }
 
@@ -1109,6 +1298,8 @@
       container.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.scale})`;
     }
 
+    let previousScaleState = false;
+
     function zoomAt(factor, cx, cy) {
       const newScale = Math.min(Math.max(state.scale * factor, 0.25), 15);
       const ratio = newScale / state.scale;
@@ -1116,6 +1307,13 @@
       state.panY = cy - (cy - state.panY) * ratio;
       state.scale = newScale;
       applyTransform();
+
+      // Check if crossed threshold
+      const isCallout = state.scale >= CALLOUT_ZOOM_THRESHOLD;
+      if (isCallout !== previousScaleState) {
+        previousScaleState = isCallout;
+        renderOverlays();
+      }
     }
 
     function fitToScreen() {
@@ -1131,6 +1329,9 @@
       state.panX = (vw - iw * state.scale) / 2;
       state.panY = (vh - ih * state.scale) / 2;
       applyTransform();
+
+      previousScaleState = state.scale >= CALLOUT_ZOOM_THRESHOLD;
+      renderOverlays();
     }
 
     function focusOnPin(cluster) {
@@ -1142,10 +1343,14 @@
       const vw = viewport.clientWidth;
       const vh = viewport.clientHeight;
 
-      state.scale = Math.max(state.scale, 1.3);
+      // Automatically zoom into callout view when tapping or selecting pin
+      state.scale = Math.max(state.scale, 2.0);
       state.panX = vw / 2 - targetX * state.scale;
-      state.panY = vh * 0.4 - targetY * state.scale; // Bias slightly upward for bottom sheet
+      state.panY = vh * 0.35 - targetY * state.scale; // Bias upward for bottom sheet
       applyTransform();
+
+      previousScaleState = state.scale >= CALLOUT_ZOOM_THRESHOLD;
+      renderOverlays();
     }
 
     // Touch & Mouse Gesture Handlers
@@ -1168,7 +1373,7 @@
             const rect = viewport.getBoundingClientRect();
             const cx = e.touches[0].clientX - rect.left;
             const cy = e.touches[0].clientY - rect.top;
-            if (state.scale > 1.5) {
+            if (state.scale >= CALLOUT_ZOOM_THRESHOLD) {
               fitToScreen();
             } else {
               zoomAt(2.5, cx, cy);
@@ -1213,7 +1418,7 @@
       // Mouse support for testing
       let isMouseDown = false;
       viewport.addEventListener('mousedown', (e) => {
-        if (e.target.closest('.map-pin')) return;
+        if (e.target.closest('.compact-pin, .callout-node, .callout-anchor-point')) return;
         isMouseDown = true;
         startX = e.clientX - state.panX;
         startY = e.clientY - state.panY;
@@ -1238,10 +1443,10 @@
       // Zoom FAB buttons
       document.getElementById('btnFitScreen').addEventListener('click', fitToScreen);
       document.getElementById('btnZoomIn').addEventListener('click', () => {
-        zoomAt(1.3, viewport.clientWidth / 2, viewport.clientHeight / 2);
+        zoomAt(1.35, viewport.clientWidth / 2, viewport.clientHeight / 2);
       });
       document.getElementById('btnZoomOut').addEventListener('click', () => {
-        zoomAt(0.77, viewport.clientWidth / 2, viewport.clientHeight / 2);
+        zoomAt(0.75, viewport.clientWidth / 2, viewport.clientHeight / 2);
       });
 
       // Filter chips (Rank)
@@ -1250,7 +1455,7 @@
           document.querySelectorAll('[data-filter-rank]').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
           state.filterRank = btn.dataset.filterRank;
-          renderPins();
+          renderOverlays();
         });
       });
 
@@ -1260,7 +1465,7 @@
           document.querySelectorAll('[data-filter-status]').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
           state.filterStatus = btn.dataset.filterStatus;
-          renderPins();
+          renderOverlays();
         });
       });
 
@@ -1360,7 +1565,6 @@
 
       overviewImg.onload = () => {
         fitToScreen();
-        renderPins();
         updateProgress();
       };
 
