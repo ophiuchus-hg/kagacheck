@@ -265,19 +265,19 @@
     /* Anchor Point at Defect Spot */
     .callout-anchor-point {
       position: absolute;
-      width: 10px;
-      height: 10px;
+      width: 12px;
+      height: 12px;
       border-radius: 50%;
       background: #ffffff;
-      border: 2px solid #0284c7;
+      border: 3px solid #0284c7;
       transform: translate(-50%, -50%);
-      box-shadow: 0 0 8px rgba(56,189,248,0.9);
+      box-shadow: 0 0 10px rgba(56,189,248,1), 0 2px 5px rgba(0,0,0,0.8);
       pointer-events: auto;
       cursor: pointer;
       z-index: 12;
     }
 
-    /* Detailed Callout Node (Information Display Mode with Drag Support) */
+    /* Detailed Callout Node */
     .callout-node {
       position: absolute;
       transform: translate(-50%, -50%);
@@ -287,12 +287,12 @@
       display: flex;
       align-items: center;
       gap: 6px;
-      background: rgba(15, 23, 42, 0.90);
+      background: rgba(15, 23, 42, 0.94);
       backdrop-filter: blur(6px);
-      border: 1.5px solid var(--border-color);
+      border: 2px solid #38bdf8;
       border-radius: 14px;
-      padding: 3px 8px 3px 4px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.7);
+      padding: 4px 9px 4px 5px;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.8), 0 0 8px rgba(56,189,248,0.3);
       white-space: nowrap;
       transition: border-color 0.15s ease, opacity 0.2s ease, box-shadow 0.15s ease;
       touch-action: none;
@@ -300,16 +300,17 @@
 
     .callout-node.is-dragging {
       cursor: grabbing;
-      transform: translate(-50%, -50%) scale(1.18);
-      border-color: #38bdf8;
-      box-shadow: 0 8px 24px rgba(56,189,248,0.6);
-      background: rgba(15, 23, 42, 0.98);
+      transform: translate(-50%, -50%) scale(1.22);
+      border-color: #f59e0b;
+      box-shadow: 0 10px 30px rgba(245,158,11,0.7);
+      background: rgba(15, 23, 42, 1);
       z-index: 50;
     }
 
     .callout-node.is-confirmed {
       border-color: #22c55e;
-      background: rgba(20, 83, 45, 0.85);
+      background: rgba(20, 83, 45, 0.9);
+      box-shadow: 0 4px 18px rgba(0,0,0,0.8), 0 0 8px rgba(34,197,94,0.4);
     }
 
     .callout-rank-circle {
@@ -323,7 +324,7 @@
       font-size: 11px;
       font-weight: 900;
       flex-shrink: 0;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.5);
     }
 
     .callout-text-info {
@@ -350,7 +351,7 @@
       font-size: 11px;
       font-weight: 700;
       color: #ffffff;
-      background: rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.15);
       padding: 0 4px;
       border-radius: 3px;
     }
@@ -939,7 +940,6 @@
       filterRank: 'ALL',
       filterStatus: 'ALL',
       confirmedPinIds: new Set(),
-      // Custom Callout manual positions { [pinId]: { xRatio, yRatio } }
       customNodePositions: {},
       // Touch transform
       scale: 1,
@@ -1068,7 +1068,7 @@
       return true;
     }
 
-    // Viewport Culling & Drag-enabled Leader Line Callout Placement
+    // Render Overlays with High-Visibility Leader Lines & Viewport Culling
     function renderOverlays() {
       const isCalloutMode = state.scale >= CALLOUT_ZOOM_THRESHOLD;
       const pinsLayer = document.getElementById('pinsLayer');
@@ -1078,7 +1078,7 @@
 
       const zoomHintText = document.getElementById('zoomHintText');
       if (isCalloutMode) {
-        zoomHintText.textContent = `情報表示 (長押しで位置移動可)`;
+        zoomHintText.textContent = `情報表示 (長押しで移動)`;
       } else {
         zoomHintText.textContent = `ピン表示（拡大で情報表示）`;
       }
@@ -1090,10 +1090,10 @@
       svgLayer.setAttribute('width', imgW);
       svgLayer.setAttribute('height', imgH);
 
-      // Calculate Visible Viewport Bounding Box in image pixel coordinates (with padding)
+      // Visible Viewport Bounds in Image Pixel coordinates
       const vpW = viewport.clientWidth;
       const vpH = viewport.clientHeight;
-      const pad = 80 / state.scale; // 80px margin
+      const pad = 100 / state.scale;
       const visLeft = (-state.panX) / state.scale - pad;
       const visRight = (-state.panX + vpW) / state.scale + pad;
       const visTop = (-state.panY) / state.scale - pad;
@@ -1114,7 +1114,7 @@
         const originPxX = cluster.xRatio * imgW;
         const originPxY = cluster.yRatio * imgH;
 
-        // Viewport Culling: Skip if anchor point is completely outside screen
+        // Skip pins completely outside screen
         if (originPxX < visLeft || originPxX > visRight || originPxY < visTop || originPxY > visBottom) {
           return;
         }
@@ -1124,7 +1124,7 @@
         const allConfirmed = cluster.pins.every(p => state.confirmedPinIds.has(p.pinId));
 
         if (!isCalloutMode) {
-          // --- 1. PIN DISPLAY MODE (Zoom < Threshold) ---
+          // --- 1. PIN DISPLAY MODE ---
           const pinEl = document.createElement('div');
           pinEl.className = `compact-pin ${isDimmed ? 'dimmed' : ''} ${allConfirmed ? 'is-confirmed' : ''}`;
           pinEl.style.left = `${cluster.xRatio * 100}%`;
@@ -1149,7 +1149,7 @@
           pinsLayer.appendChild(pinEl);
 
         } else {
-          // --- 2. INFORMATION DISPLAY MODE (Visible only, Drag enabled) ---
+          // --- 2. INFORMATION DISPLAY MODE (High-Visibility Lines) ---
           const anchorEl = document.createElement('div');
           anchorEl.className = `callout-anchor-point ${isDimmed ? 'dimmed' : ''}`;
           anchorEl.style.left = `${cluster.xRatio * 100}%`;
@@ -1175,12 +1175,10 @@
 
             let bestX, bestY;
 
-            // Check if user manually dragged this node previously
             if (state.customNodePositions[pin.pinId]) {
               bestX = state.customNodePositions[pin.pinId].xRatio * imgW;
               bestY = state.customNodePositions[pin.pinId].yRatio * imgH;
             } else {
-              // Automatic collision-free calculation
               bestX = originPxX + 45;
               bestY = originPxY - 30;
               let foundSafePos = false;
@@ -1223,24 +1221,42 @@
               }
             }
 
-            // Draw Leader Line in SVG
+            // Draw High-Visibility Outlined Leader Line
+            let leaderPathShadow = null;
             let leaderPath = null;
             let leaderJoint = null;
+
             if (!isDimmed && isVisible) {
               const midX = (originPxX + bestX) / 2;
+              const pathD = `M ${originPxX} ${originPxY} Q ${midX} ${originPxY} ${bestX} ${bestY}`;
+
+              // 1. Black Outline/Shadow for Contrast
+              leaderPathShadow = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+              leaderPathShadow.setAttribute('d', pathD);
+              leaderPathShadow.setAttribute('stroke', '#000000');
+              leaderPathShadow.setAttribute('stroke-width', (4.5 / Math.min(state.scale, 2.5)).toFixed(1));
+              leaderPathShadow.setAttribute('fill', 'none');
+              leaderPathShadow.setAttribute('stroke-linecap', 'round');
+              leaderPathShadow.setAttribute('opacity', '0.85');
+              svgLayer.appendChild(leaderPathShadow);
+
+              // 2. Main Glowing Core Line
               leaderPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-              leaderPath.setAttribute('d', `M ${originPxX} ${originPxY} Q ${midX} ${originPxY} ${bestX} ${bestY}`);
-              leaderPath.setAttribute('stroke', isConfirmed ? '#22c55e' : 'rgba(56, 189, 248, 0.85)');
-              leaderPath.setAttribute('stroke-width', (1.5 / Math.min(state.scale, 2.5)).toFixed(1));
+              leaderPath.setAttribute('d', pathD);
+              leaderPath.setAttribute('stroke', isConfirmed ? '#22c55e' : '#38bdf8');
+              leaderPath.setAttribute('stroke-width', (2.8 / Math.min(state.scale, 2.5)).toFixed(1));
               leaderPath.setAttribute('fill', 'none');
               leaderPath.setAttribute('stroke-linecap', 'round');
               svgLayer.appendChild(leaderPath);
 
+              // 3. Tip Joint Dot
               leaderJoint = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
               leaderJoint.setAttribute('cx', bestX);
               leaderJoint.setAttribute('cy', bestY);
-              leaderJoint.setAttribute('r', (2.5 / Math.min(state.scale, 2.5)).toFixed(1));
+              leaderJoint.setAttribute('r', (4.0 / Math.min(state.scale, 2.5)).toFixed(1));
               leaderJoint.setAttribute('fill', rankColor);
+              leaderJoint.setAttribute('stroke', '#ffffff');
+              leaderJoint.setAttribute('stroke-width', (1.5 / Math.min(state.scale, 2.5)).toFixed(1));
               svgLayer.appendChild(leaderJoint);
             }
 
@@ -1248,7 +1264,7 @@
             const memberCode = getMemberShortCode(pin.member);
             const locStreet = formatLocationStreet(pin.location, pin.streetFrom, pin.streetTo);
 
-            // HTML Callout Node (Information Card)
+            // HTML Callout Node
             const nodeEl = document.createElement('div');
             nodeEl.className = `callout-node ${!isVisible ? 'dimmed' : ''} ${isConfirmed ? 'is-confirmed' : ''}`;
             nodeEl.style.left = `${(bestX / imgW) * 100}%`;
@@ -1270,8 +1286,7 @@
               </div>
             `;
 
-            // Long Press & Drag Handler for Callout Node
-            attachLongPressDrag(nodeEl, pin, originPxX, originPxY, imgW, imgH, leaderPath, leaderJoint, clusterIdx, pinIdx);
+            attachLongPressDrag(nodeEl, pin, originPxX, originPxY, imgW, imgH, leaderPath, leaderPathShadow, leaderJoint, clusterIdx, pinIdx);
 
             pinsLayer.appendChild(nodeEl);
           });
@@ -1279,14 +1294,16 @@
       });
     }
 
-    // Long Press & Drag Implementation
-    function attachLongPressDrag(nodeEl, pin, originPxX, originPxY, imgW, imgH, leaderPath, leaderJoint, clusterIdx, pinIdx) {
+    // Long Press & Drag: Prevents modal from popping up on release after dragging
+    function attachLongPressDrag(nodeEl, pin, originPxX, originPxY, imgW, imgH, leaderPath, leaderPathShadow, leaderJoint, clusterIdx, pinIdx) {
       let pressTimer = null;
       let isDragging = false;
+      let hasDragged = false;
       let startClientX = 0, startClientY = 0;
       let startNodeX = 0, startNodeY = 0;
 
       function startPress(clientX, clientY) {
+        hasDragged = false;
         startClientX = clientX;
         startClientY = clientY;
         const currentLeftRatio = parseFloat(nodeEl.style.left) / 100;
@@ -1296,21 +1313,20 @@
 
         pressTimer = setTimeout(() => {
           isDragging = true;
+          hasDragged = true;
           nodeEl.classList.add('is-dragging');
-          if (navigator.vibrate) navigator.vibrate(40);
-        }, 320); // 320ms for long press
+          if (navigator.vibrate) navigator.vibrate(50);
+        }, 300);
       }
 
       function moveDrag(clientX, clientY) {
         if (!isDragging) {
-          // If moved before timer fires, cancel long press (normal pan)
           if (Math.hypot(clientX - startClientX, clientY - startClientY) > 8) {
             clearTimeout(pressTimer);
           }
           return;
         }
 
-        // Calculate delta in image pixel coordinates
         const deltaX = (clientX - startClientX) / state.scale;
         const deltaY = (clientY - startClientY) / state.scale;
         const curPxX = startNodeX + deltaX;
@@ -1322,13 +1338,15 @@
         // Update leader line live
         if (leaderPath && leaderJoint) {
           const midX = (originPxX + curPxX) / 2;
-          leaderPath.setAttribute('d', `M ${originPxX} ${originPxY} Q ${midX} ${originPxY} ${curPxX} ${curPxY}`);
+          const pathD = `M ${originPxX} ${originPxY} Q ${midX} ${originPxY} ${curPxX} ${curPxY}`;
+          if (leaderPathShadow) leaderPathShadow.setAttribute('d', pathD);
+          leaderPath.setAttribute('d', pathD);
           leaderJoint.setAttribute('cx', curPxX);
           leaderJoint.setAttribute('cy', curPxY);
         }
       }
 
-      function endDrag() {
+      function endDrag(e) {
         clearTimeout(pressTimer);
         if (isDragging) {
           isDragging = false;
@@ -1337,10 +1355,13 @@
           const finalYRatio = parseFloat(nodeEl.style.top) / 100;
           state.customNodePositions[pin.pinId] = { xRatio: finalXRatio, yRatio: finalYRatio };
           saveCustomPositions();
+
+          // Suppress upcoming click event from triggering modal
+          if (e && e.cancelable) e.preventDefault();
         }
       }
 
-      // Touch events
+      // Touch listeners
       nodeEl.addEventListener('touchstart', (e) => {
         if (e.touches.length === 1) {
           startPress(e.touches[0].clientX, e.touches[0].clientY);
@@ -1353,15 +1374,17 @@
         }
       }, { passive: true });
 
-      window.addEventListener('touchend', endDrag);
+      window.addEventListener('touchend', (e) => {
+        endDrag(e);
+      });
 
-      // Mouse events for testing
+      // Mouse listeners
       nodeEl.addEventListener('mousedown', (e) => {
         e.stopPropagation();
         startPress(e.clientX, e.clientY);
         const onMouseMove = (ev) => moveDrag(ev.clientX, ev.clientY);
-        const onMouseUp = () => {
-          endDrag();
+        const onMouseUp = (ev) => {
+          endDrag(ev);
           window.removeEventListener('mousemove', onMouseMove);
           window.removeEventListener('mouseup', onMouseUp);
         };
@@ -1369,10 +1392,10 @@
         window.addEventListener('mouseup', onMouseUp);
       });
 
-      // Regular Tap -> Open Detail Bottom Sheet (only if not dragged)
+      // Click listener: Only open bottom sheet if it was a quick tap (not dragged)
       nodeEl.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (!isDragging) {
+        if (!hasDragged && !isDragging) {
           openBottomSheet(clusterIdx, pinIdx);
         }
       });
@@ -1608,7 +1631,7 @@
 
     function setupGestures() {
       viewport.addEventListener('touchstart', (e) => {
-        if (e.target.closest('.callout-node')) return; // handled by node drag
+        if (e.target.closest('.callout-node')) return;
         if (e.touches.length === 1) {
           isTouching = true;
           startX = e.touches[0].clientX - state.panX;
@@ -1640,7 +1663,6 @@
           state.panX = e.touches[0].clientX - startX;
           state.panY = e.touches[0].clientY - startY;
           applyTransform();
-          // Debounced culling update on pan
           clearTimeout(renderDebounceTimer);
           renderDebounceTimer = setTimeout(renderOverlays, 60);
         } else if (e.touches.length === 2) {
