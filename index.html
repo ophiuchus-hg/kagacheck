@@ -1036,23 +1036,33 @@
       return match ? match[1] : member.slice(0, 4);
     }
 
-    // Helper: Format location and street range
-    function formatLocationStreet(location, streetFrom, streetTo) {
-      const loc = location || '';
+    // Helper: Shorten Location ("門型柱 Y12" -> "Y12門", "X1通り" -> "X1通")
+    function shortenLocation(loc) {
+      if (!loc) return '';
+      let s = loc.replace(/(門型柱|門柱型)\s*(Y\d+)/g, '$2門');
+      s = s.replace(/通り/g, '通');
+      return s;
+    }
+
+    // Helper: Format location, street range, and height level (Z3 etc.)
+    function formatLocationStreetLevel(location, streetFrom, streetTo, level) {
+      const loc = shortenLocation(location);
       let street = streetFrom || '';
       if (streetTo && streetTo !== streetFrom) {
         street = street ? `${street}〜${streetTo}` : streetTo;
       }
-      if (loc && street) return `${loc} ${street}`;
-      return loc || street || '-';
+      const lvl = level && level !== 'その他' ? level : (level || '');
+      
+      const parts = [loc, street, lvl].filter(Boolean);
+      return parts.join(' ') || '-';
     }
 
     // Smart Clustering: Groups nearby pins (distance < threshold) into single manageable cluster card
     function buildClusters(pins) {
       const clusters = [];
-      const threshold = 0.008; // Group dense neighbor pins together to completely eliminate overlapping
+      const threshold = 0.008;
 
-      pins.forEach((pin, pinGlobalIdx) => {
+      pins.forEach((pin) => {
         let added = false;
         for (let c of clusters) {
           const dx = c.xRatio - pin.xRatio;
@@ -1130,7 +1140,7 @@
         const originPxX = cluster.xRatio * imgW;
         const originPxY = cluster.yRatio * imgH;
 
-        // Viewport Culling: Skip if outside visible area
+        // Viewport Culling
         if (originPxX < visLeft || originPxX > visRight || originPxY < visTop || originPxY > visBottom) {
           return;
         }
@@ -1166,7 +1176,6 @@
 
         } else {
           // --- 2. NON-OVERLAPPING STACKED CALLOUT MODE ---
-          // Anchor Point at defect position
           const anchorEl = document.createElement('div');
           anchorEl.className = `callout-anchor-point ${isDimmed ? 'dimmed' : ''}`;
           anchorEl.style.left = `${cluster.xRatio * 100}%`;
@@ -1177,22 +1186,19 @@
           });
           pinsLayer.appendChild(anchorEl);
 
-          // Card dimensions estimation
           const itemCount = Math.max(visiblePins.length, 1);
-          const nodeScreenW = 120;
+          const nodeScreenW = 135;
           const nodeScreenH = Math.min(itemCount * 32, 140);
           const nodeImgW = nodeScreenW / state.scale;
           const nodeImgH = nodeScreenH / state.scale;
 
           let bestX, bestY;
 
-          // Check if custom dragged position exists for this cluster
           const clusterKey = cluster.id || `cluster_${clusterIdx}`;
           if (state.customClusterPositions[clusterKey]) {
             bestX = state.customClusterPositions[clusterKey].xRatio * imgW;
             bestY = state.customClusterPositions[clusterKey].yRatio * imgH;
           } else {
-            // Intelligent Staggering: Alternates top lane (-Y) and bottom lane (+Y)
             const isTopLane = clusterIdx % 2 === 0;
             const laneSign = isTopLane ? -1 : 1;
             const distOptions = [45, 80, 115, 150, 185];
@@ -1225,7 +1231,6 @@
             }
 
             if (!foundSafePos) {
-              // Fallback lane placement
               const fallbackDist = 55 + (clusterIdx % 3) * 35;
               bestX = originPxX + (clusterIdx % 2 === 0 ? 30 : -30);
               bestY = originPxY + laneSign * fallbackDist;
@@ -1247,7 +1252,7 @@
             const midX = (originPxX + bestX) / 2;
             const pathD = `M ${originPxX} ${originPxY} Q ${midX} ${originPxY} ${bestX} ${bestY}`;
 
-            // 1. Black Outline for high contrast on any background
+            // 1. Black Outline
             leaderPathShadow = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             leaderPathShadow.setAttribute('d', pathD);
             leaderPathShadow.setAttribute('stroke', '#000000');
@@ -1277,13 +1282,12 @@
             svgLayer.appendChild(leaderJoint);
           }
 
-          // HTML Stacked Callout Card (Neat non-overlapping box containing all items of this spot)
+          // HTML Stacked Callout Card
           const cardEl = document.createElement('div');
           cardEl.className = `callout-card-cluster ${isDimmed ? 'dimmed' : ''} ${allConfirmed ? 'all-confirmed' : ''}`;
           cardEl.style.left = `${(bestX / imgW) * 100}%`;
           cardEl.style.top = `${(bestY / imgH) * 100}%`;
 
-          // Generate item rows inside this cluster
           let rowsHtml = '';
           cluster.pins.forEach((pin, pinIdxInCluster) => {
             const isVisible = isPinVisible(pin);
@@ -1293,7 +1297,7 @@
             const rankColor = getRankBadgeBg(pin.corrosionRank);
             const last3 = getRecordLast3(pin.recordNo);
             const memberCode = getMemberShortCode(pin.member);
-            const locStreet = formatLocationStreet(pin.location, pin.streetFrom, pin.streetTo);
+            const locStreetLevel = formatLocationStreetLevel(pin.location, pin.streetFrom, pin.streetTo, pin.level);
 
             rowsHtml += `
               <div class="callout-item-row ${isConfirmed ? 'is-confirmed' : ''}" data-pin-idx="${pinIdxInCluster}">
@@ -1307,7 +1311,7 @@
                     ${isConfirmed ? '<span class="callout-check-mark">✓</span>' : ''}
                   </div>
                   <div class="callout-location-row">
-                    <span>${locStreet}</span>
+                    <span>${locStreetLevel}</span>
                   </div>
                 </div>
               </div>
@@ -1316,7 +1320,6 @@
 
           cardEl.innerHTML = rowsHtml;
 
-          // Attach Drag & Drop (Guaranteed to save on release without resetting)
           attachClusterDrag(cardEl, clusterKey, originPxX, originPxY, bestX, bestY, imgW, imgH, leaderPath, leaderPathShadow, leaderJoint, clusterIdx);
 
           pinsLayer.appendChild(cardEl);
@@ -1324,7 +1327,7 @@
       });
     }
 
-    // Android/Touch-safe Long-Press Drag (Fixes position drop reset & prevents modal opening)
+    // Android/Touch-safe Long-Press Drag
     function attachClusterDrag(cardEl, clusterKey, originPxX, originPxY, initialPxX, initialPxY, imgW, imgH, leaderPath, leaderPathShadow, leaderJoint, clusterIdx) {
       let pressTimer = null;
       let isDragging = false;
@@ -1363,7 +1366,6 @@
         cardEl.style.left = `${(currentPxX / imgW) * 100}%`;
         cardEl.style.top = `${(currentPxY / imgH) * 100}%`;
 
-        // Update leader line dynamically
         if (leaderPath && leaderJoint) {
           const midX = (originPxX + currentPxX) / 2;
           const pathD = `M ${originPxX} ${originPxY} Q ${midX} ${originPxY} ${currentPxX} ${currentPxY}`;
@@ -1380,7 +1382,6 @@
           isDragging = false;
           cardEl.classList.remove('is-dragging');
 
-          // Directly save exact ratio coordinates to state & storage
           state.customClusterPositions[clusterKey] = {
             xRatio: currentPxX / imgW,
             yRatio: currentPxY / imgH
@@ -1394,7 +1395,6 @@
         }
       }
 
-      // Touch events (Mobile)
       cardEl.addEventListener('touchstart', (e) => {
         if (e.touches.length === 1) {
           onStart(e.touches[0].clientX, e.touches[0].clientY);
@@ -1411,7 +1411,6 @@
         if (isDragging) onEnd(e);
       });
 
-      // Mouse events (Desktop / Testing)
       cardEl.addEventListener('mousedown', (e) => {
         e.stopPropagation();
         onStart(e.clientX, e.clientY);
@@ -1428,7 +1427,6 @@
         window.addEventListener('mouseup', onMouseUp);
       });
 
-      // Row item click handler for opening modal
       cardEl.querySelectorAll('.callout-item-row').forEach(row => {
         row.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -1486,7 +1484,7 @@
       document.getElementById('valPinType').textContent = pin.pinType || '-';
       document.getElementById('valLevel').textContent = pin.level || '-';
       document.getElementById('valMember').textContent = `${pin.member || '-'}${pin.memberSize ? ' (' + pin.memberSize + ')' : ''}`;
-      document.getElementById('valStreet').textContent = formatLocationStreet(pin.location, pin.streetFrom, pin.streetTo);
+      document.getElementById('valStreet').textContent = formatLocationStreetLevel(pin.location, pin.streetFrom, pin.streetTo, pin.level);
       document.getElementById('valThickness').textContent = pin.measuredThicknessMm ? `${pin.measuredThicknessMm} mm` : '-';
       document.getElementById('valRemarks').textContent = pin.remarks ? `${pin.remarks} mm` : '-';
 
@@ -1562,7 +1560,7 @@
         const isConfirmed = state.confirmedPinIds.has(pin.pinId);
         const last3 = getRecordLast3(pin.recordNo);
         const memberCode = getMemberShortCode(pin.member);
-        const locStreet = formatLocationStreet(pin.location, pin.streetFrom, pin.streetTo);
+        const locStreetLevel = formatLocationStreetLevel(pin.location, pin.streetFrom, pin.streetTo, pin.level);
 
         const card = document.createElement('div');
         card.className = 'list-item-card';
@@ -1574,7 +1572,7 @@
               ${isConfirmed ? '<span style="color:var(--accent-green); font-size:11px; font-weight:bold;">✓ 済</span>' : ''}
             </div>
             <div style="font-size:11px; color:var(--text-muted);">
-              ${memberCode ? `[${memberCode}] ` : ''}${locStreet}
+              ${memberCode ? `[${memberCode}] ` : ''}${locStreetLevel}
             </div>
           </div>
           <div style="font-size:13px; font-weight:700; color:var(--accent-blue);">
@@ -1830,7 +1828,7 @@
 
     function exportStatusCsv() {
       const rows = [
-        ['recordNo', 'pinType', 'corrosionRank', 'member', 'location', 'streetFrom', 'streetTo', 'measuredThicknessMm', 'isConfirmed']
+        ['recordNo', 'pinType', 'corrosionRank', 'member', 'location', 'streetFrom', 'streetTo', 'level', 'measuredThicknessMm', 'isConfirmed']
       ];
       state.allPins.forEach(p => {
         rows.push([
@@ -1841,6 +1839,7 @@
           `"${p.location || ''}"`,
           `"${p.streetFrom || ''}"`,
           `"${p.streetTo || ''}"`,
+          `"${p.level || ''}"`,
           `"${p.measuredThicknessMm || ''}"`,
           state.confirmedPinIds.has(p.pinId) ? 'CONFIRMED' : 'UNCONFIRMED'
         ]);
