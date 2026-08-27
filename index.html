@@ -265,11 +265,11 @@
     /* Anchor Point at Defect Spot */
     .callout-anchor-point {
       position: absolute;
-      width: 12px;
-      height: 12px;
+      width: 10px;
+      height: 10px;
       border-radius: 50%;
       background: #ffffff;
-      border: 3px solid #0284c7;
+      border: 2.5px solid #0284c7;
       transform: translate(-50%, -50%);
       box-shadow: 0 0 10px rgba(56,189,248,1), 0 2px 5px rgba(0,0,0,0.8);
       pointer-events: auto;
@@ -277,101 +277,116 @@
       z-index: 12;
     }
 
-    /* Detailed Callout Node */
-    .callout-node {
+    /* Stacked Cluster Callout Card (Neat non-overlapping box) */
+    .callout-card-cluster {
       position: absolute;
       transform: translate(-50%, -50%);
       pointer-events: auto;
       cursor: grab;
       z-index: 15;
       display: flex;
-      align-items: center;
-      gap: 6px;
-      background: rgba(15, 23, 42, 0.94);
-      backdrop-filter: blur(6px);
+      flex-direction: column;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(8px);
       border: 2px solid #38bdf8;
-      border-radius: 14px;
-      padding: 4px 9px 4px 5px;
-      box-shadow: 0 4px 18px rgba(0,0,0,0.8), 0 0 8px rgba(56,189,248,0.3);
-      white-space: nowrap;
-      transition: border-color 0.15s ease, opacity 0.2s ease, box-shadow 0.15s ease;
+      border-radius: 12px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.85), 0 0 10px rgba(56,189,248,0.25);
+      overflow: hidden;
       touch-action: none;
+      transition: box-shadow 0.15s ease;
     }
 
-    .callout-node.is-dragging {
+    .callout-card-cluster.is-dragging {
       cursor: grabbing;
-      transform: translate(-50%, -50%) scale(1.22);
+      transform: translate(-50%, -50%) scale(1.1);
       border-color: #f59e0b;
-      box-shadow: 0 10px 30px rgba(245,158,11,0.7);
-      background: rgba(15, 23, 42, 1);
+      box-shadow: 0 12px 30px rgba(245,158,11,0.8);
       z-index: 50;
     }
 
-    .callout-node.is-confirmed {
+    .callout-card-cluster.all-confirmed {
       border-color: #22c55e;
-      background: rgba(20, 83, 45, 0.9);
-      box-shadow: 0 4px 18px rgba(0,0,0,0.8), 0 0 8px rgba(34,197,94,0.4);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.85), 0 0 10px rgba(34,197,94,0.3);
+    }
+
+    .callout-item-row {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 8px 4px 6px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .callout-item-row:last-child {
+      border-bottom: none;
+    }
+
+    .callout-item-row:active {
+      background: rgba(56, 189, 248, 0.2);
+    }
+
+    .callout-item-row.is-confirmed {
+      background: rgba(34, 197, 94, 0.15);
     }
 
     .callout-rank-circle {
-      width: 20px;
-      height: 20px;
+      width: 17px;
+      height: 17px;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
       color: white;
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 900;
       flex-shrink: 0;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
     }
 
     .callout-text-info {
       display: flex;
       flex-direction: column;
-      line-height: 1.2;
+      line-height: 1.15;
       pointer-events: none;
     }
 
     .callout-main-row {
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 4px;
     }
 
     .callout-num-badge {
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 800;
       color: #38bdf8;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
 
     .callout-member-code {
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 700;
       color: #ffffff;
       background: rgba(255,255,255,0.15);
-      padding: 0 4px;
+      padding: 0 3px;
       border-radius: 3px;
     }
 
     .callout-location-row {
-      font-size: 10px;
+      font-size: 9px;
       color: #cbd5e1;
-      display: flex;
-      align-items: center;
-      gap: 3px;
     }
 
     .callout-check-mark {
       color: #4ade80;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: bold;
       margin-left: 2px;
     }
 
-    .compact-pin.dimmed, .callout-node.dimmed, .callout-anchor-point.dimmed {
+    .compact-pin.dimmed, .callout-card-cluster.dimmed, .callout-anchor-point.dimmed {
       opacity: 0.1;
       filter: grayscale(0.95);
       pointer-events: none;
@@ -940,8 +955,8 @@
       filterRank: 'ALL',
       filterStatus: 'ALL',
       confirmedPinIds: new Set(),
-      customNodePositions: {},
-      // Touch transform
+      // Custom cluster positions: { [clusterKey]: { xRatio, yRatio } }
+      customClusterPositions: {},
       scale: 1,
       panX: 0,
       panY: 0
@@ -949,7 +964,7 @@
 
     const CALLOUT_ZOOM_THRESHOLD = 1.35;
     const STORAGE_KEY = 'kagacheck_confirmed_pins_v1';
-    const CUSTOM_POS_KEY = 'kagacheck_custom_positions_v1';
+    const CUSTOM_POS_KEY = 'kagacheck_custom_cluster_positions_v2';
 
     // LocalStorage
     function loadConfirmedState() {
@@ -960,7 +975,7 @@
         }
         const savedPos = localStorage.getItem(CUSTOM_POS_KEY);
         if (savedPos) {
-          state.customNodePositions = JSON.parse(savedPos);
+          state.customClusterPositions = JSON.parse(savedPos);
         }
       } catch (e) {
         console.warn(e);
@@ -979,7 +994,7 @@
 
     function saveCustomPositions() {
       try {
-        localStorage.setItem(CUSTOM_POS_KEY, JSON.stringify(state.customNodePositions));
+        localStorage.setItem(CUSTOM_POS_KEY, JSON.stringify(state.customClusterPositions));
       } catch (e) {
         console.warn(e);
       }
@@ -1032,12 +1047,12 @@
       return loc || street || '-';
     }
 
-    // Build Clusters for close pins
+    // Smart Clustering: Groups nearby pins (distance < threshold) into single manageable cluster card
     function buildClusters(pins) {
       const clusters = [];
-      const threshold = 0.0035;
+      const threshold = 0.008; // Group dense neighbor pins together to completely eliminate overlapping
 
-      pins.forEach(pin => {
+      pins.forEach((pin, pinGlobalIdx) => {
         let added = false;
         for (let c of clusters) {
           const dx = c.xRatio - pin.xRatio;
@@ -1050,6 +1065,7 @@
         }
         if (!added) {
           clusters.push({
+            id: `cluster_${clusters.length}_${pin.recordNo}`,
             xRatio: pin.xRatio,
             yRatio: pin.yRatio,
             pins: [pin]
@@ -1068,7 +1084,7 @@
       return true;
     }
 
-    // Render Overlays with High-Visibility Leader Lines & Viewport Culling
+    // Multi-Lane Collision Avoidance & Non-overlapping Stack Layout
     function renderOverlays() {
       const isCalloutMode = state.scale >= CALLOUT_ZOOM_THRESHOLD;
       const pinsLayer = document.getElementById('pinsLayer');
@@ -1090,10 +1106,10 @@
       svgLayer.setAttribute('width', imgW);
       svgLayer.setAttribute('height', imgH);
 
-      // Visible Viewport Bounds in Image Pixel coordinates
+      // Viewport bounds in native image pixel space
       const vpW = viewport.clientWidth;
       const vpH = viewport.clientHeight;
-      const pad = 100 / state.scale;
+      const pad = 120 / state.scale;
       const visLeft = (-state.panX) / state.scale - pad;
       const visRight = (-state.panX + vpW) / state.scale + pad;
       const visTop = (-state.panY) / state.scale - pad;
@@ -1114,13 +1130,13 @@
         const originPxX = cluster.xRatio * imgW;
         const originPxY = cluster.yRatio * imgH;
 
-        // Skip pins completely outside screen
+        // Viewport Culling: Skip if outside visible area
         if (originPxX < visLeft || originPxX > visRight || originPxY < visTop || originPxY > visBottom) {
           return;
         }
 
-        const matchingPins = cluster.pins.filter(isPinVisible);
-        const isDimmed = matchingPins.length === 0;
+        const visiblePins = cluster.pins.filter(isPinVisible);
+        const isDimmed = visiblePins.length === 0;
         const allConfirmed = cluster.pins.every(p => state.confirmedPinIds.has(p.pinId));
 
         if (!isCalloutMode) {
@@ -1149,7 +1165,8 @@
           pinsLayer.appendChild(pinEl);
 
         } else {
-          // --- 2. INFORMATION DISPLAY MODE (High-Visibility Lines) ---
+          // --- 2. NON-OVERLAPPING STACKED CALLOUT MODE ---
+          // Anchor Point at defect position
           const anchorEl = document.createElement('div');
           anchorEl.className = `callout-anchor-point ${isDimmed ? 'dimmed' : ''}`;
           anchorEl.style.left = `${cluster.xRatio * 100}%`;
@@ -1160,231 +1177,250 @@
           });
           pinsLayer.appendChild(anchorEl);
 
-          const nodeScreenW = 115;
-          const nodeScreenH = 34;
+          // Card dimensions estimation
+          const itemCount = Math.max(visiblePins.length, 1);
+          const nodeScreenW = 120;
+          const nodeScreenH = Math.min(itemCount * 32, 140);
           const nodeImgW = nodeScreenW / state.scale;
           const nodeImgH = nodeScreenH / state.scale;
 
-          const baseAngles = clusterIdx % 2 === 0 ? [-35, 35, -65, 65, -15, 15, -145, 145] : [35, -35, 65, -65, 15, -15, 145, -145];
-          const distSteps = [42, 72, 105, 138, 170];
+          let bestX, bestY;
 
-          cluster.pins.forEach((pin, pinIdx) => {
+          // Check if custom dragged position exists for this cluster
+          const clusterKey = cluster.id || `cluster_${clusterIdx}`;
+          if (state.customClusterPositions[clusterKey]) {
+            bestX = state.customClusterPositions[clusterKey].xRatio * imgW;
+            bestY = state.customClusterPositions[clusterKey].yRatio * imgH;
+          } else {
+            // Intelligent Staggering: Alternates top lane (-Y) and bottom lane (+Y)
+            const isTopLane = clusterIdx % 2 === 0;
+            const laneSign = isTopLane ? -1 : 1;
+            const distOptions = [45, 80, 115, 150, 185];
+            const angleOffsets = [0, 25, -25, 45, -45, 70, -70];
+
+            let foundSafePos = false;
+
+            for (const d of distOptions) {
+              for (const ang of angleOffsets) {
+                const rad = ((ang + (isTopLane ? -90 : 90)) * Math.PI) / 180;
+                const candidateX = originPxX + Math.cos(rad) * d;
+                const candidateY = originPxY + Math.sin(rad) * (d + (itemCount * 4));
+
+                const box = {
+                  l: candidateX - nodeImgW / 2 - 3,
+                  r: candidateX + nodeImgW / 2 + 3,
+                  t: candidateY - nodeImgH / 2 - 3,
+                  b: candidateY + nodeImgH / 2 + 3
+                };
+
+                if (!hasCollision(box)) {
+                  bestX = candidateX;
+                  bestY = candidateY;
+                  placedBoxes.push(box);
+                  foundSafePos = true;
+                  break;
+                }
+              }
+              if (foundSafePos) break;
+            }
+
+            if (!foundSafePos) {
+              // Fallback lane placement
+              const fallbackDist = 55 + (clusterIdx % 3) * 35;
+              bestX = originPxX + (clusterIdx % 2 === 0 ? 30 : -30);
+              bestY = originPxY + laneSign * fallbackDist;
+              placedBoxes.push({
+                l: bestX - nodeImgW/2,
+                r: bestX + nodeImgW/2,
+                t: bestY - nodeImgH/2,
+                b: bestY + nodeImgH/2
+              });
+            }
+          }
+
+          // Draw High-Visibility Outlined Leader Line
+          let leaderPathShadow = null;
+          let leaderPath = null;
+          let leaderJoint = null;
+
+          if (!isDimmed && visiblePins.length > 0) {
+            const midX = (originPxX + bestX) / 2;
+            const pathD = `M ${originPxX} ${originPxY} Q ${midX} ${originPxY} ${bestX} ${bestY}`;
+
+            // 1. Black Outline for high contrast on any background
+            leaderPathShadow = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            leaderPathShadow.setAttribute('d', pathD);
+            leaderPathShadow.setAttribute('stroke', '#000000');
+            leaderPathShadow.setAttribute('stroke-width', (4.5 / Math.min(state.scale, 2.5)).toFixed(1));
+            leaderPathShadow.setAttribute('fill', 'none');
+            leaderPathShadow.setAttribute('stroke-linecap', 'round');
+            leaderPathShadow.setAttribute('opacity', '0.9');
+            svgLayer.appendChild(leaderPathShadow);
+
+            // 2. Glowing Core Line
+            leaderPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            leaderPath.setAttribute('d', pathD);
+            leaderPath.setAttribute('stroke', allConfirmed ? '#22c55e' : '#38bdf8');
+            leaderPath.setAttribute('stroke-width', (2.8 / Math.min(state.scale, 2.5)).toFixed(1));
+            leaderPath.setAttribute('fill', 'none');
+            leaderPath.setAttribute('stroke-linecap', 'round');
+            svgLayer.appendChild(leaderPath);
+
+            // 3. Tip Joint Dot
+            leaderJoint = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            leaderJoint.setAttribute('cx', bestX);
+            leaderJoint.setAttribute('cy', bestY);
+            leaderJoint.setAttribute('r', (3.5 / Math.min(state.scale, 2.5)).toFixed(1));
+            leaderJoint.setAttribute('fill', getRankBadgeBg(cluster.pins[0].corrosionRank));
+            leaderJoint.setAttribute('stroke', '#ffffff');
+            leaderJoint.setAttribute('stroke-width', (1.5 / Math.min(state.scale, 2.5)).toFixed(1));
+            svgLayer.appendChild(leaderJoint);
+          }
+
+          // HTML Stacked Callout Card (Neat non-overlapping box containing all items of this spot)
+          const cardEl = document.createElement('div');
+          cardEl.className = `callout-card-cluster ${isDimmed ? 'dimmed' : ''} ${allConfirmed ? 'all-confirmed' : ''}`;
+          cardEl.style.left = `${(bestX / imgW) * 100}%`;
+          cardEl.style.top = `${(bestY / imgH) * 100}%`;
+
+          // Generate item rows inside this cluster
+          let rowsHtml = '';
+          cluster.pins.forEach((pin, pinIdxInCluster) => {
             const isVisible = isPinVisible(pin);
+            if (!isVisible && state.filterRank !== 'ALL') return;
+
             const isConfirmed = state.confirmedPinIds.has(pin.pinId);
             const rankColor = getRankBadgeBg(pin.corrosionRank);
-
-            let bestX, bestY;
-
-            if (state.customNodePositions[pin.pinId]) {
-              bestX = state.customNodePositions[pin.pinId].xRatio * imgW;
-              bestY = state.customNodePositions[pin.pinId].yRatio * imgH;
-            } else {
-              bestX = originPxX + 45;
-              bestY = originPxY - 30;
-              let foundSafePos = false;
-
-              for (const d of distSteps) {
-                for (const deg of baseAngles) {
-                  const shiftedDeg = deg + (pinIdx * 28);
-                  const rad = (shiftedDeg * Math.PI) / 180;
-                  const candidateX = originPxX + Math.cos(rad) * d;
-                  const candidateY = originPxY + Math.sin(rad) * d;
-
-                  const box = {
-                    l: candidateX - nodeImgW / 2 - 2,
-                    r: candidateX + nodeImgW / 2 + 2,
-                    t: candidateY - nodeImgH / 2 - 2,
-                    b: candidateY + nodeImgH / 2 + 2
-                  };
-
-                  if (!hasCollision(box)) {
-                    bestX = candidateX;
-                    bestY = candidateY;
-                    placedBoxes.push(box);
-                    foundSafePos = true;
-                    break;
-                  }
-                }
-                if (foundSafePos) break;
-              }
-
-              if (!foundSafePos) {
-                const rad = ((-30 + pinIdx * 35) * Math.PI) / 180;
-                bestX = originPxX + Math.cos(rad) * (50 + pinIdx * 30);
-                bestY = originPxY + Math.sin(rad) * (50 + pinIdx * 30);
-                placedBoxes.push({
-                  l: bestX - nodeImgW/2,
-                  r: bestX + nodeImgW/2,
-                  t: bestY - nodeImgH/2,
-                  b: bestY + nodeImgH/2
-                });
-              }
-            }
-
-            // Draw High-Visibility Outlined Leader Line
-            let leaderPathShadow = null;
-            let leaderPath = null;
-            let leaderJoint = null;
-
-            if (!isDimmed && isVisible) {
-              const midX = (originPxX + bestX) / 2;
-              const pathD = `M ${originPxX} ${originPxY} Q ${midX} ${originPxY} ${bestX} ${bestY}`;
-
-              // 1. Black Outline/Shadow for Contrast
-              leaderPathShadow = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-              leaderPathShadow.setAttribute('d', pathD);
-              leaderPathShadow.setAttribute('stroke', '#000000');
-              leaderPathShadow.setAttribute('stroke-width', (4.5 / Math.min(state.scale, 2.5)).toFixed(1));
-              leaderPathShadow.setAttribute('fill', 'none');
-              leaderPathShadow.setAttribute('stroke-linecap', 'round');
-              leaderPathShadow.setAttribute('opacity', '0.85');
-              svgLayer.appendChild(leaderPathShadow);
-
-              // 2. Main Glowing Core Line
-              leaderPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-              leaderPath.setAttribute('d', pathD);
-              leaderPath.setAttribute('stroke', isConfirmed ? '#22c55e' : '#38bdf8');
-              leaderPath.setAttribute('stroke-width', (2.8 / Math.min(state.scale, 2.5)).toFixed(1));
-              leaderPath.setAttribute('fill', 'none');
-              leaderPath.setAttribute('stroke-linecap', 'round');
-              svgLayer.appendChild(leaderPath);
-
-              // 3. Tip Joint Dot
-              leaderJoint = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-              leaderJoint.setAttribute('cx', bestX);
-              leaderJoint.setAttribute('cy', bestY);
-              leaderJoint.setAttribute('r', (4.0 / Math.min(state.scale, 2.5)).toFixed(1));
-              leaderJoint.setAttribute('fill', rankColor);
-              leaderJoint.setAttribute('stroke', '#ffffff');
-              leaderJoint.setAttribute('stroke-width', (1.5 / Math.min(state.scale, 2.5)).toFixed(1));
-              svgLayer.appendChild(leaderJoint);
-            }
-
             const last3 = getRecordLast3(pin.recordNo);
             const memberCode = getMemberShortCode(pin.member);
             const locStreet = formatLocationStreet(pin.location, pin.streetFrom, pin.streetTo);
 
-            // HTML Callout Node
-            const nodeEl = document.createElement('div');
-            nodeEl.className = `callout-node ${!isVisible ? 'dimmed' : ''} ${isConfirmed ? 'is-confirmed' : ''}`;
-            nodeEl.style.left = `${(bestX / imgW) * 100}%`;
-            nodeEl.style.top = `${(bestY / imgH) * 100}%`;
-
-            nodeEl.innerHTML = `
-              <div class="callout-rank-circle" style="background: ${rankColor};">
-                ${pin.corrosionRank || '-'}
-              </div>
-              <div class="callout-text-info">
-                <div class="callout-main-row">
-                  <span class="callout-num-badge">#${last3}</span>
-                  ${memberCode ? `<span class="callout-member-code">${memberCode}</span>` : ''}
-                  ${isConfirmed ? '<span class="callout-check-mark">✓</span>' : ''}
+            rowsHtml += `
+              <div class="callout-item-row ${isConfirmed ? 'is-confirmed' : ''}" data-pin-idx="${pinIdxInCluster}">
+                <div class="callout-rank-circle" style="background: ${rankColor};">
+                  ${pin.corrosionRank || '-'}
                 </div>
-                <div class="callout-location-row">
-                  <span>${locStreet}</span>
+                <div class="callout-text-info">
+                  <div class="callout-main-row">
+                    <span class="callout-num-badge">#${last3}</span>
+                    ${memberCode ? `<span class="callout-member-code">${memberCode}</span>` : ''}
+                    ${isConfirmed ? '<span class="callout-check-mark">✓</span>' : ''}
+                  </div>
+                  <div class="callout-location-row">
+                    <span>${locStreet}</span>
+                  </div>
                 </div>
               </div>
             `;
-
-            attachLongPressDrag(nodeEl, pin, originPxX, originPxY, imgW, imgH, leaderPath, leaderPathShadow, leaderJoint, clusterIdx, pinIdx);
-
-            pinsLayer.appendChild(nodeEl);
           });
+
+          cardEl.innerHTML = rowsHtml;
+
+          // Attach Drag & Drop (Guaranteed to save on release without resetting)
+          attachClusterDrag(cardEl, clusterKey, originPxX, originPxY, bestX, bestY, imgW, imgH, leaderPath, leaderPathShadow, leaderJoint, clusterIdx);
+
+          pinsLayer.appendChild(cardEl);
         }
       });
     }
 
-    // Long Press & Drag: Prevents modal from popping up on release after dragging
-    function attachLongPressDrag(nodeEl, pin, originPxX, originPxY, imgW, imgH, leaderPath, leaderPathShadow, leaderJoint, clusterIdx, pinIdx) {
+    // Android/Touch-safe Long-Press Drag (Fixes position drop reset & prevents modal opening)
+    function attachClusterDrag(cardEl, clusterKey, originPxX, originPxY, initialPxX, initialPxY, imgW, imgH, leaderPath, leaderPathShadow, leaderJoint, clusterIdx) {
       let pressTimer = null;
       let isDragging = false;
-      let hasDragged = false;
-      let startClientX = 0, startClientY = 0;
-      let startNodeX = 0, startNodeY = 0;
+      let hasMoved = false;
 
-      function startPress(clientX, clientY) {
-        hasDragged = false;
-        startClientX = clientX;
-        startClientY = clientY;
-        const currentLeftRatio = parseFloat(nodeEl.style.left) / 100;
-        const currentTopRatio = parseFloat(nodeEl.style.top) / 100;
-        startNodeX = currentLeftRatio * imgW;
-        startNodeY = currentTopRatio * imgH;
+      let startTouchX = 0, startTouchY = 0;
+      let currentPxX = initialPxX, currentPxY = initialPxY;
+
+      function onStart(clientX, clientY) {
+        hasMoved = false;
+        startTouchX = clientX;
+        startTouchY = clientY;
 
         pressTimer = setTimeout(() => {
           isDragging = true;
-          hasDragged = true;
-          nodeEl.classList.add('is-dragging');
+          hasMoved = true;
+          cardEl.classList.add('is-dragging');
           if (navigator.vibrate) navigator.vibrate(50);
-        }, 300);
+        }, 280);
       }
 
-      function moveDrag(clientX, clientY) {
+      function onMove(clientX, clientY) {
         if (!isDragging) {
-          if (Math.hypot(clientX - startClientX, clientY - startClientY) > 8) {
+          if (Math.hypot(clientX - startTouchX, clientY - startTouchY) > 8) {
             clearTimeout(pressTimer);
           }
           return;
         }
 
-        const deltaX = (clientX - startClientX) / state.scale;
-        const deltaY = (clientY - startClientY) / state.scale;
-        const curPxX = startNodeX + deltaX;
-        const curPxY = startNodeY + deltaY;
+        const deltaX = (clientX - startTouchX) / state.scale;
+        const deltaY = (clientY - startTouchY) / state.scale;
 
-        nodeEl.style.left = `${(curPxX / imgW) * 100}%`;
-        nodeEl.style.top = `${(curPxY / imgH) * 100}%`;
+        currentPxX = initialPxX + deltaX;
+        currentPxY = initialPxY + deltaY;
 
-        // Update leader line live
+        cardEl.style.left = `${(currentPxX / imgW) * 100}%`;
+        cardEl.style.top = `${(currentPxY / imgH) * 100}%`;
+
+        // Update leader line dynamically
         if (leaderPath && leaderJoint) {
-          const midX = (originPxX + curPxX) / 2;
-          const pathD = `M ${originPxX} ${originPxY} Q ${midX} ${originPxY} ${curPxX} ${curPxY}`;
+          const midX = (originPxX + currentPxX) / 2;
+          const pathD = `M ${originPxX} ${originPxY} Q ${midX} ${originPxY} ${currentPxX} ${currentPxY}`;
           if (leaderPathShadow) leaderPathShadow.setAttribute('d', pathD);
           leaderPath.setAttribute('d', pathD);
-          leaderJoint.setAttribute('cx', curPxX);
-          leaderJoint.setAttribute('cy', curPxY);
+          leaderJoint.setAttribute('cx', currentPxX);
+          leaderJoint.setAttribute('cy', currentPxY);
         }
       }
 
-      function endDrag(e) {
+      function onEnd(e) {
         clearTimeout(pressTimer);
         if (isDragging) {
           isDragging = false;
-          nodeEl.classList.remove('is-dragging');
-          const finalXRatio = parseFloat(nodeEl.style.left) / 100;
-          const finalYRatio = parseFloat(nodeEl.style.top) / 100;
-          state.customNodePositions[pin.pinId] = { xRatio: finalXRatio, yRatio: finalYRatio };
+          cardEl.classList.remove('is-dragging');
+
+          // Directly save exact ratio coordinates to state & storage
+          state.customClusterPositions[clusterKey] = {
+            xRatio: currentPxX / imgW,
+            yRatio: currentPxY / imgH
+          };
           saveCustomPositions();
 
-          // Suppress upcoming click event from triggering modal
-          if (e && e.cancelable) e.preventDefault();
+          if (e && e.cancelable) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
         }
       }
 
-      // Touch listeners
-      nodeEl.addEventListener('touchstart', (e) => {
+      // Touch events (Mobile)
+      cardEl.addEventListener('touchstart', (e) => {
         if (e.touches.length === 1) {
-          startPress(e.touches[0].clientX, e.touches[0].clientY);
+          onStart(e.touches[0].clientX, e.touches[0].clientY);
         }
       }, { passive: true });
 
       window.addEventListener('touchmove', (e) => {
-        if (e.touches.length === 1) {
-          moveDrag(e.touches[0].clientX, e.touches[0].clientY);
+        if (isDragging && e.touches.length === 1) {
+          onMove(e.touches[0].clientX, e.touches[0].clientY);
         }
       }, { passive: true });
 
       window.addEventListener('touchend', (e) => {
-        endDrag(e);
+        if (isDragging) onEnd(e);
       });
 
-      // Mouse listeners
-      nodeEl.addEventListener('mousedown', (e) => {
+      // Mouse events (Desktop / Testing)
+      cardEl.addEventListener('mousedown', (e) => {
         e.stopPropagation();
-        startPress(e.clientX, e.clientY);
-        const onMouseMove = (ev) => moveDrag(ev.clientX, ev.clientY);
+        onStart(e.clientX, e.clientY);
+
+        const onMouseMove = (ev) => {
+          if (isDragging) onMove(ev.clientX, ev.clientY);
+        };
         const onMouseUp = (ev) => {
-          endDrag(ev);
+          if (isDragging) onEnd(ev);
           window.removeEventListener('mousemove', onMouseMove);
           window.removeEventListener('mouseup', onMouseUp);
         };
@@ -1392,12 +1428,15 @@
         window.addEventListener('mouseup', onMouseUp);
       });
 
-      // Click listener: Only open bottom sheet if it was a quick tap (not dragged)
-      nodeEl.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (!hasDragged && !isDragging) {
-          openBottomSheet(clusterIdx, pinIdx);
-        }
+      // Row item click handler for opening modal
+      cardEl.querySelectorAll('.callout-item-row').forEach(row => {
+        row.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (!hasMoved && !isDragging) {
+            const pinIdx = parseInt(row.dataset.pinIdx, 10) || 0;
+            openBottomSheet(clusterIdx, pinIdx);
+          }
+        });
       });
     }
 
@@ -1631,7 +1670,7 @@
 
     function setupGestures() {
       viewport.addEventListener('touchstart', (e) => {
-        if (e.target.closest('.callout-node')) return;
+        if (e.target.closest('.callout-card-cluster, .callout-anchor-point')) return;
         if (e.touches.length === 1) {
           isTouching = true;
           startX = e.touches[0].clientX - state.panX;
@@ -1690,7 +1729,7 @@
       // Mouse support
       let isMouseDown = false;
       viewport.addEventListener('mousedown', (e) => {
-        if (e.target.closest('.compact-pin, .callout-node, .callout-anchor-point')) return;
+        if (e.target.closest('.compact-pin, .callout-card-cluster, .callout-anchor-point')) return;
         isMouseDown = true;
         startX = e.clientX - state.panX;
         startY = e.clientY - state.panY;
@@ -1719,7 +1758,6 @@
 
     // UI Actions Setup
     function setupActions() {
-      // Zoom FAB buttons
       document.getElementById('btnFitScreen').addEventListener('click', fitToScreen);
       document.getElementById('btnZoomIn').addEventListener('click', () => {
         zoomAt(1.4, viewport.clientWidth / 2, viewport.clientHeight / 2);
