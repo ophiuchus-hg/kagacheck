@@ -897,31 +897,15 @@
           <div class="photo-zoom-hint">タップで拡大</div>
         </div>
 
-        <!-- Attributes Grid -->
-        <div class="mobile-info-grid">
-          <div class="info-card-item">
-            <span class="info-label">所見タイプ</span>
-            <span class="info-val" id="valPinType">-</span>
-          </div>
-          <div class="info-card-item">
-            <span class="info-label">階高レベル</span>
-            <span class="info-val" id="valLevel">-</span>
-          </div>
+        <!-- Attributes (2段構成) -->
+        <div class="mobile-info-grid" style="display: flex; flex-direction: column; gap: 8px;">
           <div class="info-card-item full-width">
             <span class="info-label">部材 / サイズ</span>
-            <span class="info-val" id="valMember">-</span>
+            <span class="info-val" id="valMemberCombined" style="font-size: 13px; line-height: 1.3;">-</span>
           </div>
           <div class="info-card-item full-width">
-            <span class="info-label">位置・通り芯</span>
-            <span class="info-val" id="valStreet">-</span>
-          </div>
-          <div class="info-card-item">
-            <span class="info-label">測定板厚</span>
-            <span class="info-val" id="valThickness" style="color: var(--accent-blue);">- mm</span>
-          </div>
-          <div class="info-card-item">
-            <span class="info-label">基準板厚 / 備考</span>
-            <span class="info-val" id="valRemarks">- mm</span>
+            <span class="info-label">位置・通り芯・階高 / 板厚</span>
+            <span class="info-val" id="valLocationThicknessCombined" style="font-size: 14px; font-weight: 700; color: #38bdf8;">-</span>
           </div>
         </div>
       </div>
@@ -1524,12 +1508,26 @@
       document.getElementById('sheetRankBadge').textContent = pin.corrosionRank || '-';
       document.getElementById('sheetRankBadge').style.background = getRankBadgeBg(pin.corrosionRank);
 
-      document.getElementById('valPinType').textContent = pin.pinType || '-';
-      document.getElementById('valLevel').textContent = pin.level || '-';
-      document.getElementById('valMember').textContent = `${pin.member || '-'}${pin.memberSize ? ' (' + pin.memberSize + ')' : ''}`;
-      document.getElementById('valStreet').textContent = formatLocationStreetLevel(pin.location, pin.streetFrom, pin.streetTo, pin.level);
-      document.getElementById('valThickness').textContent = pin.measuredThicknessMm ? `${pin.measuredThicknessMm} mm` : '-';
-      document.getElementById('valRemarks').textContent = pin.remarks ? `${pin.remarks} mm` : '-';
+      // 1段目: 部材(サイズ) 例: ガセットプレート(GPL)(H-150×150×7×10(P1))
+      const memberPart = pin.member ? pin.member.trim() : '';
+      const sizePart = pin.memberSize ? `(${pin.memberSize.trim()})` : '';
+      const memberCombined = (memberPart + sizePart) || '-';
+      document.getElementById('valMemberCombined').textContent = memberCombined;
+
+      // 2段目: 位置 通り芯 階高 測定板厚(基準板厚) 例: X3通 Y7-1 Z2 5.4mm(6.0mm)
+      const locStreetLevel = formatLocationStreetLevel(pin.location, pin.streetFrom, pin.streetTo, pin.level);
+      let thickPart = '';
+      if (pin.measuredThicknessMm && String(pin.measuredThicknessMm).trim() !== '') {
+        thickPart += `${String(pin.measuredThicknessMm).trim()}mm`;
+      } else {
+        thickPart += '0mm';
+      }
+      if (pin.remarks && String(pin.remarks).trim() !== '') {
+        const rem = String(pin.remarks).trim();
+        thickPart += `(${rem.endsWith('mm') ? rem : rem + 'mm'})`;
+      }
+      const locationThicknessCombined = `${locStreetLevel} ${thickPart}`.trim();
+      document.getElementById('valLocationThicknessCombined').textContent = locationThicknessCombined || '-';
 
       const img = document.getElementById('sheetCloseupImg');
       img.src = pin.closeupPhotoFile ? `closeup_photos/${pin.closeupPhotoFile}` : '';
