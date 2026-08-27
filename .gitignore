@@ -1,0 +1,6 @@
+# Ignore raw archive
+*.zip
+
+# OS files
+.DS_Store
+Thumbs.db

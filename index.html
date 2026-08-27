@@ -1,0 +1,1373 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>構造物点検ビューア (スマホ版)</title>
+  <style>
+    :root {
+      --bg-main: #090d16;
+      --bg-header: #131b2e;
+      --bg-sheet: #1e293b;
+      --bg-card: #273549;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --border-color: #334155;
+      --accent-blue: #38bdf8;
+      --accent-green: #22c55e;
+      --rank-d: #ef4444;
+      --rank-c: #f97316;
+      --rank-b: #eab308;
+      --rank-a: #22c55e;
+      --rank-hole: #d946ef;
+      --rank-other: #64748b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      height: 100dvh;
+      overflow: hidden;
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* Top Compact Header */
+    header {
+      background: var(--bg-header);
+      border-bottom: 1px solid var(--border-color);
+      padding: env(safe-area-inset-top, 8px) 12px 8px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 30;
+      flex-shrink: 0;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    .header-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .app-title-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .app-badge {
+      background: #0284c7;
+      color: white;
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 4px;
+      letter-spacing: 0.5px;
+    }
+
+    .app-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #ffffff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 180px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .progress-pill {
+      background: #0f172a;
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 3px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent-green);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .btn-header-icon {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .btn-header-icon:active {
+      background: #38bdf8;
+      color: #000;
+    }
+
+    /* Filter & Search Scroll Area */
+    .filter-scroll-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .filter-scroll-row::-webkit-scrollbar {
+      display: none;
+    }
+
+    .chip-btn {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 4px 10px;
+      border-radius: 16px;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .chip-btn.active {
+      background: #0284c7;
+      border-color: #38bdf8;
+      color: white;
+    }
+
+    .chip-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    /* Main Touch Canvas Viewport */
+    .viewport {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      background: #050811;
+      touch-action: none;
+    }
+
+    .canvas-container {
+      position: absolute;
+      transform-origin: 0 0;
+      will-change: transform;
+      display: inline-block;
+    }
+
+    .overview-image {
+      display: block;
+      max-width: none;
+      pointer-events: none;
+    }
+
+    /* Touch-optimized Pins */
+    .pins-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .map-pin {
+      position: absolute;
+      transform: translate(-50%, -100%);
+      pointer-events: auto;
+      cursor: pointer;
+      z-index: 10;
+      padding: 10px; /* Expand touch hitbox */
+      margin: -10px;
+    }
+
+    .pin-marker {
+      width: 28px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      filter: drop-shadow(0 3px 6px rgba(0,0,0,0.7));
+      position: relative;
+      transition: transform 0.15s ease;
+    }
+
+    .map-pin:active .pin-marker,
+    .map-pin.active .pin-marker {
+      transform: scale(1.3);
+    }
+
+    .pin-badge {
+      position: absolute;
+      top: -3px;
+      right: -5px;
+      background: #ffffff;
+      color: #0f172a;
+      font-size: 11px;
+      font-weight: 800;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1.5px solid #0f172a;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+    }
+
+    .pin-checked-badge {
+      position: absolute;
+      top: -3px;
+      left: -5px;
+      background: #22c55e;
+      color: white;
+      font-size: 10px;
+      font-weight: 900;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1.5px solid #0f172a;
+    }
+
+    .map-pin.is-confirmed .pin-marker {
+      opacity: 0.85;
+    }
+
+    .map-pin.dimmed {
+      opacity: 0.15;
+      filter: grayscale(0.9);
+      pointer-events: none;
+    }
+
+    /* Floating Quick Buttons on Canvas */
+    .canvas-overlay-controls {
+      position: absolute;
+      right: 12px;
+      bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 20;
+    }
+
+    .fab-btn {
+      width: 44px;
+      height: 44px;
+      background: rgba(30, 41, 59, 0.9);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--border-color);
+      border-radius: 50%;
+      color: var(--text-main);
+      font-size: 18px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+      cursor: pointer;
+    }
+
+    .fab-btn:active {
+      background: var(--accent-blue);
+      color: #000;
+    }
+
+    /* Mobile Bottom Sheet (Modal for Detail) */
+    .bottom-sheet-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(2px);
+      z-index: 50;
+      display: none;
+      align-items: flex-end;
+    }
+
+    .bottom-sheet-backdrop.open {
+      display: flex;
+    }
+
+    .bottom-sheet {
+      width: 100%;
+      max-height: 85vh;
+      max-height: 85dvh;
+      background: var(--bg-sheet);
+      border-top-left-radius: 20px;
+      border-top-right-radius: 20px;
+      border-top: 1px solid var(--border-color);
+      box-shadow: 0 -8px 30px rgba(0,0,0,0.7);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: sheetUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      padding-bottom: env(safe-area-inset-bottom, 16px);
+    }
+
+    @keyframes sheetUp {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+
+    .sheet-handle-bar {
+      width: 100%;
+      padding: 10px 0 6px 0;
+      display: flex;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .sheet-handle {
+      width: 40px;
+      height: 4px;
+      background: #475569;
+      border-radius: 2px;
+    }
+
+    .sheet-header {
+      padding: 4px 16px 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .sheet-title-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .rank-badge-lg {
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 800;
+      color: white;
+    }
+
+    .sheet-record-no {
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    /* Cluster Tab Bar in Sheet */
+    .sheet-cluster-tabs {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding: 8px 16px;
+      background: rgba(15, 23, 42, 0.4);
+      border-bottom: 1px solid var(--border-color);
+      scrollbar-width: none;
+    }
+
+    .sheet-cluster-tabs::-webkit-scrollbar {
+      display: none;
+    }
+
+    .cluster-tab-pill {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .cluster-tab-pill.active {
+      background: #0284c7;
+      color: white;
+      border-color: #38bdf8;
+    }
+
+    .sheet-scroll-body {
+      padding: 14px 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Touch Photo Wrapper */
+    .sheet-photo-wrapper {
+      position: relative;
+      width: 100%;
+      height: 220px;
+      background: #000000;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .sheet-photo-img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .photo-zoom-hint {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      background: rgba(15, 23, 42, 0.85);
+      font-size: 10px;
+      padding: 3px 6px;
+      border-radius: 4px;
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    /* Confirm Action Big Button */
+    .btn-big-confirm {
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      transition: all 0.15s ease;
+    }
+
+    .btn-big-confirm.not-confirmed {
+      background: #334155;
+      color: #ffffff;
+      border-color: #475569;
+    }
+
+    .btn-big-confirm.not-confirmed:active {
+      background: #475569;
+    }
+
+    .btn-big-confirm.is-confirmed {
+      background: #16a34a;
+      color: #ffffff;
+      border-color: #22c55e;
+    }
+
+    .btn-big-confirm.is-confirmed:active {
+      background: #15803d;
+    }
+
+    /* Attribute Table for Mobile */
+    .mobile-info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .info-card-item {
+      background: var(--bg-card);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 8px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .info-card-item.full-width {
+      grid-column: span 2;
+    }
+
+    .info-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .info-val {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-main);
+      word-break: break-all;
+    }
+
+    /* Bottom Navigation Bar inside Sheet */
+    .sheet-nav-footer {
+      padding: 8px 16px;
+      border-top: 1px solid var(--border-color);
+      background: var(--bg-sheet);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .sheet-nav-btn {
+      flex: 1;
+      padding: 10px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-main);
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+
+    .sheet-nav-btn:active {
+      background: #0284c7;
+      color: #fff;
+    }
+
+    /* Fullscreen List Drawer */
+    .list-drawer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      background: var(--bg-header);
+      z-index: 60;
+      display: none;
+      flex-direction: column;
+      padding-top: env(safe-area-inset-top, 8px);
+      padding-bottom: env(safe-area-inset-bottom, 8px);
+    }
+
+    .list-drawer.open {
+      display: flex;
+    }
+
+    .list-drawer-header {
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .list-drawer-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .list-item-card {
+      background: var(--bg-sheet);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .list-item-card:active {
+      border-color: var(--accent-blue);
+      background: #334155;
+    }
+
+    /* Fullscreen Photo Lightbox */
+    .lightbox-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      background: #000000;
+      z-index: 100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .lightbox-modal.open {
+      display: flex;
+    }
+
+    .lightbox-img {
+      width: 100vw;
+      height: 100vh;
+      object-fit: contain;
+    }
+
+    .lightbox-close-btn {
+      position: absolute;
+      top: max(env(safe-area-inset-top, 16px), 16px);
+      right: 16px;
+      background: rgba(30, 41, 59, 0.8);
+      color: white;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Mobile Header -->
+  <header>
+    <div class="header-top">
+      <div class="app-title-group">
+        <span class="app-badge">点検</span>
+        <div class="app-title" id="projectTitle">Area2</div>
+      </div>
+
+      <div class="header-actions">
+        <div class="progress-pill">
+          <span>✓</span>
+          <span id="progressText">0/0 (0%)</span>
+        </div>
+        <button class="btn-header-icon" id="btnOpenList" title="一覧リスト">📋</button>
+        <button class="btn-header-icon" id="btnExportCsv" title="CSV出力">💾</button>
+      </div>
+    </div>
+
+    <!-- Scrollable Filter Chips -->
+    <div class="filter-scroll-row">
+      <button class="chip-btn active" data-filter-status="ALL">すべて</button>
+      <button class="chip-btn" data-filter-status="UNCONFIRMED">未確認のみ</button>
+      <button class="chip-btn" data-filter-status="CONFIRMED">確認済のみ</button>
+      <div style="width: 1px; height: 16px; background: var(--border-color); flex-shrink:0;"></div>
+      <button class="chip-btn active" data-filter-rank="ALL">全ランク</button>
+      <button class="chip-btn" data-filter-rank="D"><span class="chip-dot" style="background: var(--rank-d);"></span>D</button>
+      <button class="chip-btn" data-filter-rank="C"><span class="chip-dot" style="background: var(--rank-c);"></span>C</button>
+      <button class="chip-btn" data-filter-rank="B"><span class="chip-dot" style="background: var(--rank-b);"></span>B</button>
+      <button class="chip-btn" data-filter-rank="A"><span class="chip-dot" style="background: var(--rank-a);"></span>A</button>
+    </div>
+  </header>
+
+  <!-- Touch Viewport -->
+  <main class="viewport" id="viewport">
+    <div class="canvas-container" id="canvasContainer">
+      <img id="overviewImg" class="overview-image" alt="全景写真" src="">
+      <div class="pins-layer" id="pinsLayer"></div>
+    </div>
+
+    <!-- Touch Floating Action Buttons -->
+    <div class="canvas-overlay-controls">
+      <button class="fab-btn" id="btnFitScreen" title="全体表示">⛶</button>
+      <button class="fab-btn" id="btnZoomIn" title="拡大">＋</button>
+      <button class="fab-btn" id="btnZoomOut" title="縮小">－</button>
+    </div>
+  </main>
+
+  <!-- Mobile Bottom Sheet (Detail Modal) -->
+  <div class="bottom-sheet-backdrop" id="sheetBackdrop">
+    <div class="bottom-sheet" id="bottomSheet">
+      <div class="sheet-handle-bar" id="sheetHandleBar">
+        <div class="sheet-handle"></div>
+      </div>
+
+      <div class="sheet-header">
+        <div class="sheet-title-group">
+          <span id="sheetRankBadge" class="rank-badge-lg" style="background: var(--rank-d);">D</span>
+          <span id="sheetRecordNo" class="sheet-record-no">Area2-X-S01-001</span>
+        </div>
+        <button class="btn-header-icon" id="btnCloseSheet" style="border:none; background:transparent; font-size:18px;">✕</button>
+      </div>
+
+      <!-- Multiple Records Cluster Tabs -->
+      <div class="sheet-cluster-tabs" id="sheetClusterTabs" style="display: none;"></div>
+
+      <div class="sheet-scroll-body">
+        <!-- Big Confirmation Toggle Button -->
+        <button id="btnConfirmToggle" class="btn-big-confirm not-confirmed">
+          <span id="confirmIcon" style="font-size: 18px;">⬜</span>
+          <span id="confirmText">確認済みにする</span>
+        </button>
+
+        <!-- Closeup Photo -->
+        <div class="sheet-photo-wrapper" id="photoWrapper">
+          <img id="sheetCloseupImg" class="sheet-photo-img" src="" alt="近接写真">
+          <div class="photo-zoom-hint">タップで拡大</div>
+        </div>
+
+        <!-- Attributes Grid -->
+        <div class="mobile-info-grid">
+          <div class="info-card-item">
+            <span class="info-label">所見タイプ</span>
+            <span class="info-val" id="valPinType">-</span>
+          </div>
+          <div class="info-card-item">
+            <span class="info-label">階高レベル</span>
+            <span class="info-val" id="valLevel">-</span>
+          </div>
+          <div class="info-card-item full-width">
+            <span class="info-label">部材 / サイズ</span>
+            <span class="info-val" id="valMember">-</span>
+          </div>
+          <div class="info-card-item full-width">
+            <span class="info-label">位置・通り芯</span>
+            <span class="info-val" id="valStreet">-</span>
+          </div>
+          <div class="info-card-item">
+            <span class="info-label">測定板厚</span>
+            <span class="info-val" id="valThickness" style="color: var(--accent-blue);">- mm</span>
+          </div>
+          <div class="info-card-item">
+            <span class="info-label">基準板厚 / 備考</span>
+            <span class="info-val" id="valRemarks">- mm</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer Navigation (Prev / Next) -->
+      <div class="sheet-nav-footer">
+        <button class="sheet-nav-btn" id="btnPrevPin">◀ 前の指摘</button>
+        <span id="sheetCounter" style="font-size: 12px; color: var(--text-muted); font-weight: bold;">1 / 170</span>
+        <button class="sheet-nav-btn" id="btnNextPin">次の指摘 ▶</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fullscreen List Drawer -->
+  <div class="list-drawer" id="listDrawer">
+    <div class="list-drawer-header">
+      <h2 style="font-size: 16px; font-weight: 700;" id="drawerTitle">所見一覧 (170件)</h2>
+      <button class="btn-header-icon" id="btnCloseDrawer">✕</button>
+    </div>
+    <div class="list-drawer-content" id="listDrawerContent"></div>
+  </div>
+
+  <!-- Fullscreen Photo Lightbox -->
+  <div class="lightbox-modal" id="lightboxModal">
+    <button class="lightbox-close-btn" id="btnCloseLightbox">✕</button>
+    <img id="lightboxImg" class="lightbox-img" src="" alt="拡大写真">
+  </div>
+
+  <!-- Application Script -->
+  <script>
+    // State
+    const state = {
+      data: null,
+      clusters: [],
+      allPins: [],
+      activeClusterIndex: null,
+      activeRecordIndexInCluster: 0,
+      filterRank: 'ALL',
+      filterStatus: 'ALL',
+      confirmedPinIds: new Set(),
+      // Touch transform
+      scale: 1,
+      panX: 0,
+      panY: 0
+    };
+
+    const STORAGE_KEY = 'kagacheck_confirmed_pins_v1';
+
+    // LocalStorage
+    function loadConfirmedState() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          state.confirmedPinIds = new Set(JSON.parse(saved));
+        }
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+
+    function saveConfirmedState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(state.confirmedPinIds)));
+      } catch (e) {
+        console.warn(e);
+      }
+      updateProgress();
+      renderPins();
+    }
+
+    function updateProgress() {
+      const total = state.allPins.length;
+      if (total === 0) return;
+      let count = 0;
+      state.allPins.forEach(p => {
+        if (state.confirmedPinIds.has(p.pinId)) count++;
+      });
+      const pct = Math.round((count / total) * 100);
+      document.getElementById('progressText').textContent = `${count}/${total} (${pct}%)`;
+    }
+
+    function getRankBadgeBg(rank) {
+      if (!rank) return '#64748b';
+      const r = rank.trim();
+      if (r === 'D') return '#ef4444';
+      if (r === 'C') return '#f97316';
+      if (r === 'B') return '#eab308';
+      if (r === 'A') return '#22c55e';
+      if (r.includes('貫通')) return '#d946ef';
+      return '#64748b';
+    }
+
+    // Build Clusters for close pins
+    function buildClusters(pins) {
+      const clusters = [];
+      const threshold = 0.0035; // Touch cluster threshold
+
+      pins.forEach(pin => {
+        let added = false;
+        for (let c of clusters) {
+          const dx = c.xRatio - pin.xRatio;
+          const dy = c.yRatio - pin.yRatio;
+          if (Math.sqrt(dx * dx + dy * dy) < threshold) {
+            c.pins.push(pin);
+            added = true;
+            break;
+          }
+        }
+        if (!added) {
+          clusters.push({
+            xRatio: pin.xRatio,
+            yRatio: pin.yRatio,
+            pins: [pin]
+          });
+        }
+      });
+      return clusters;
+    }
+
+    // SVG Pin Icon
+    function createPinSvg(color) {
+      return `
+        <svg viewBox="0 0 28 36" width="28" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M14 0C6.26801 0 0 6.26801 0 14C0 23.5 14 36 14 36C14 36 28 23.5 28 14C28 6.26801 21.732 0 14 0Z" fill="${color}"/>
+          <circle cx="14" cy="13" r="6" fill="#ffffff"/>
+        </svg>
+      `;
+    }
+
+    // Render Pins on Screen
+    function renderPins() {
+      const layer = document.getElementById('pinsLayer');
+      layer.innerHTML = '';
+
+      state.clusters.forEach((cluster, clusterIdx) => {
+        let matchingPins = cluster.pins.filter(pin => {
+          if (state.filterRank !== 'ALL' && pin.corrosionRank !== state.filterRank) return false;
+          const isConfirmed = state.confirmedPinIds.has(pin.pinId);
+          if (state.filterStatus === 'UNCONFIRMED' && isConfirmed) return false;
+          if (state.filterStatus === 'CONFIRMED' && !isConfirmed) return false;
+          return true;
+        });
+
+        const isDimmed = matchingPins.length === 0;
+        const allConfirmed = cluster.pins.every(p => state.confirmedPinIds.has(p.pinId));
+        const someConfirmed = cluster.pins.some(p => state.confirmedPinIds.has(p.pinId));
+
+        const pinEl = document.createElement('div');
+        pinEl.className = `map-pin ${isDimmed ? 'dimmed' : ''} ${allConfirmed ? 'is-confirmed' : ''}`;
+        pinEl.style.left = `${cluster.xRatio * 100}%`;
+        pinEl.style.top = `${cluster.yRatio * 100}%`;
+
+        const primaryRank = cluster.pins[0].corrosionRank;
+        const pinColor = getRankBadgeBg(primaryRank);
+
+        let badgeHtml = cluster.pins.length > 1 ? `<div class="pin-badge">${cluster.pins.length}</div>` : '';
+        let checkedHtml = '';
+        if (allConfirmed) {
+          checkedHtml = `<div class="pin-checked-badge">✓</div>`;
+        } else if (someConfirmed) {
+          checkedHtml = `<div class="pin-checked-badge" style="background:#0284c7;">·</div>`;
+        }
+
+        pinEl.innerHTML = `
+          <div class="pin-marker">
+            ${createPinSvg(pinColor)}
+            ${badgeHtml}
+            ${checkedHtml}
+          </div>
+        `;
+
+        pinEl.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openBottomSheet(clusterIdx, 0);
+        });
+
+        layer.appendChild(pinEl);
+      });
+    }
+
+    // Bottom Sheet Detail Modal
+    function openBottomSheet(clusterIdx, pinIdx = 0) {
+      state.activeClusterIndex = clusterIdx;
+      state.activeRecordIndexInCluster = pinIdx;
+      const cluster = state.clusters[clusterIdx];
+      if (!cluster) return;
+
+      const tabsEl = document.getElementById('sheetClusterTabs');
+      if (cluster.pins.length > 1) {
+        tabsEl.style.display = 'flex';
+        tabsEl.innerHTML = '';
+        cluster.pins.forEach((p, idx) => {
+          const tab = document.createElement('button');
+          const isConfirmed = state.confirmedPinIds.has(p.pinId);
+          tab.className = `cluster-tab-pill ${idx === pinIdx ? 'active' : ''}`;
+          tab.innerHTML = `
+            <span style="background:${getRankBadgeBg(p.corrosionRank)}; color:white; padding:1px 4px; border-radius:3px; font-size:9px;">${p.corrosionRank || '-'}</span>
+            <span>${p.recordNo}</span>
+            ${isConfirmed ? '<span>✓</span>' : ''}
+          `;
+          tab.addEventListener('click', () => openBottomSheet(clusterIdx, idx));
+          tabsEl.appendChild(tab);
+        });
+      } else {
+        tabsEl.style.display = 'none';
+      }
+
+      const activePin = cluster.pins[pinIdx];
+      renderSheetPinDetails(activePin);
+
+      const globalIdx = state.allPins.findIndex(p => p.pinId === activePin.pinId);
+      document.getElementById('sheetCounter').textContent = `${globalIdx + 1} / ${state.allPins.length}`;
+
+      document.getElementById('sheetBackdrop').classList.add('open');
+    }
+
+    function renderSheetPinDetails(pin) {
+      document.getElementById('sheetRecordNo').textContent = pin.recordNo || '所見詳細';
+      document.getElementById('sheetRankBadge').textContent = pin.corrosionRank || '-';
+      document.getElementById('sheetRankBadge').style.background = getRankBadgeBg(pin.corrosionRank);
+
+      document.getElementById('valPinType').textContent = pin.pinType || '-';
+      document.getElementById('valLevel').textContent = pin.level || '-';
+      document.getElementById('valMember').textContent = `${pin.member || '-'}${pin.memberSize ? ' (' + pin.memberSize + ')' : ''}`;
+      document.getElementById('valStreet').textContent = `${pin.location || ''} ${pin.streetFrom ? '(' + pin.streetFrom + (pin.streetTo ? ' 〜 ' + pin.streetTo : '') + ')' : ''}` || '-';
+      document.getElementById('valThickness').textContent = pin.measuredThicknessMm ? `${pin.measuredThicknessMm} mm` : '-';
+      document.getElementById('valRemarks').textContent = pin.remarks ? `${pin.remarks} mm` : '-';
+
+      const img = document.getElementById('sheetCloseupImg');
+      img.src = pin.closeupPhotoFile ? `closeup_photos/${pin.closeupPhotoFile}` : '';
+
+      // Confirm button UI
+      const isConfirmed = state.confirmedPinIds.has(pin.pinId);
+      const confirmBtn = document.getElementById('btnConfirmToggle');
+      const confirmIcon = document.getElementById('confirmIcon');
+      const confirmText = document.getElementById('confirmText');
+
+      if (isConfirmed) {
+        confirmBtn.className = 'btn-big-confirm is-confirmed';
+        confirmIcon.textContent = '✓';
+        confirmText.textContent = '確認済み (タップで解除)';
+      } else {
+        confirmBtn.className = 'btn-big-confirm not-confirmed';
+        confirmIcon.textContent = '⬜';
+        confirmText.textContent = '確認済みにする';
+      }
+    }
+
+    function toggleCurrentPinConfirmation() {
+      if (state.activeClusterIndex === null) return;
+      const cluster = state.clusters[state.activeClusterIndex];
+      const pin = cluster.pins[state.activeRecordIndexInCluster];
+      if (!pin) return;
+
+      if (state.confirmedPinIds.has(pin.pinId)) {
+        state.confirmedPinIds.delete(pin.pinId);
+      } else {
+        state.confirmedPinIds.add(pin.pinId);
+      }
+      saveConfirmedState();
+      openBottomSheet(state.activeClusterIndex, state.activeRecordIndexInCluster);
+    }
+
+    function closeBottomSheet() {
+      document.getElementById('sheetBackdrop').classList.remove('open');
+      state.activeClusterIndex = null;
+    }
+
+    function navigatePin(direction) {
+      if (state.activeClusterIndex === null) return;
+      const currentPin = state.clusters[state.activeClusterIndex].pins[state.activeRecordIndexInCluster];
+      let globalIdx = state.allPins.findIndex(p => p.pinId === currentPin.pinId);
+      globalIdx = (globalIdx + direction + state.allPins.length) % state.allPins.length;
+
+      const targetPin = state.allPins[globalIdx];
+      const clusterIdx = state.clusters.findIndex(c => c.pins.some(p => p.pinId === targetPin.pinId));
+      const pinIdx = state.clusters[clusterIdx].pins.findIndex(p => p.pinId === targetPin.pinId);
+
+      focusOnPin(state.clusters[clusterIdx]);
+      openBottomSheet(clusterIdx, pinIdx);
+    }
+
+    // List Drawer
+    function renderListDrawer() {
+      const content = document.getElementById('listDrawerContent');
+      content.innerHTML = '';
+
+      let filteredPins = state.allPins.filter(pin => {
+        if (state.filterRank !== 'ALL' && pin.corrosionRank !== state.filterRank) return false;
+        const isConfirmed = state.confirmedPinIds.has(pin.pinId);
+        if (state.filterStatus === 'UNCONFIRMED' && isConfirmed) return false;
+        if (state.filterStatus === 'CONFIRMED' && !isConfirmed) return false;
+        return true;
+      });
+
+      document.getElementById('drawerTitle').textContent = `所見一覧 (${filteredPins.length}件)`;
+
+      filteredPins.forEach(pin => {
+        const isConfirmed = state.confirmedPinIds.has(pin.pinId);
+        const card = document.createElement('div');
+        card.className = 'list-item-card';
+        card.innerHTML = `
+          <div>
+            <div style="display:flex; align-items:center; gap:6px; margin-bottom:3px;">
+              <span class="rank-badge-lg" style="background:${getRankBadgeBg(pin.corrosionRank)}; font-size:11px; padding:2px 6px;">${pin.corrosionRank || '-'}</span>
+              <strong style="font-size:14px;">${pin.recordNo}</strong>
+              ${isConfirmed ? '<span style="color:var(--accent-green); font-size:11px; font-weight:bold;">✓ 済</span>' : ''}
+            </div>
+            <div style="font-size:11px; color:var(--text-muted);">
+              ${pin.member || ''} | ${pin.location || ''} ${pin.streetFrom || ''}
+            </div>
+          </div>
+          <div style="font-size:13px; font-weight:700; color:var(--accent-blue);">
+            ${pin.measuredThicknessMm ? pin.measuredThicknessMm + ' mm' : ''}
+          </div>
+        `;
+
+        card.addEventListener('click', () => {
+          document.getElementById('listDrawer').classList.remove('open');
+          const clusterIdx = state.clusters.findIndex(c => c.pins.some(p => p.pinId === pin.pinId));
+          if (clusterIdx !== -1) {
+            const pinIdx = state.clusters[clusterIdx].pins.findIndex(p => p.pinId === pin.pinId);
+            focusOnPin(state.clusters[clusterIdx]);
+            openBottomSheet(clusterIdx, pinIdx);
+          }
+        });
+
+        content.appendChild(card);
+      });
+    }
+
+    // Touch Transform Engine (Pinch / Pan / Fit)
+    const viewport = document.getElementById('viewport');
+    const container = document.getElementById('canvasContainer');
+    const overviewImg = document.getElementById('overviewImg');
+
+    function applyTransform() {
+      container.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.scale})`;
+    }
+
+    function zoomAt(factor, cx, cy) {
+      const newScale = Math.min(Math.max(state.scale * factor, 0.25), 15);
+      const ratio = newScale / state.scale;
+      state.panX = cx - (cx - state.panX) * ratio;
+      state.panY = cy - (cy - state.panY) * ratio;
+      state.scale = newScale;
+      applyTransform();
+    }
+
+    function fitToScreen() {
+      if (!overviewImg.naturalWidth) return;
+      const vw = viewport.clientWidth;
+      const vh = viewport.clientHeight;
+      const iw = overviewImg.naturalWidth;
+      const ih = overviewImg.naturalHeight;
+
+      const scaleX = vw / iw;
+      const scaleY = vh / ih;
+      state.scale = Math.min(scaleX, scaleY);
+      state.panX = (vw - iw * state.scale) / 2;
+      state.panY = (vh - ih * state.scale) / 2;
+      applyTransform();
+    }
+
+    function focusOnPin(cluster) {
+      const iw = overviewImg.naturalWidth;
+      const ih = overviewImg.naturalHeight;
+      const targetX = cluster.xRatio * iw;
+      const targetY = cluster.yRatio * ih;
+
+      const vw = viewport.clientWidth;
+      const vh = viewport.clientHeight;
+
+      state.scale = Math.max(state.scale, 1.3);
+      state.panX = vw / 2 - targetX * state.scale;
+      state.panY = vh * 0.4 - targetY * state.scale; // Bias slightly upward for bottom sheet
+      applyTransform();
+    }
+
+    // Touch & Mouse Gesture Handlers
+    let isTouching = false;
+    let startX = 0, startY = 0;
+    let initialDist = 0;
+    let lastTapTime = 0;
+
+    function setupGestures() {
+      // Touch events (Pinch / Drag)
+      viewport.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+          isTouching = true;
+          startX = e.touches[0].clientX - state.panX;
+          startY = e.touches[0].clientY - state.panY;
+
+          // Double tap to zoom
+          const now = Date.now();
+          if (now - lastTapTime < 300) {
+            const rect = viewport.getBoundingClientRect();
+            const cx = e.touches[0].clientX - rect.left;
+            const cy = e.touches[0].clientY - rect.top;
+            if (state.scale > 1.5) {
+              fitToScreen();
+            } else {
+              zoomAt(2.5, cx, cy);
+            }
+          }
+          lastTapTime = now;
+        } else if (e.touches.length === 2) {
+          isTouching = false;
+          initialDist = Math.hypot(
+            e.touches[0].clientX - e.touches[1].clientX,
+            e.touches[0].clientY - e.touches[1].clientY
+          );
+        }
+      }, { passive: true });
+
+      viewport.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 1 && isTouching) {
+          state.panX = e.touches[0].clientX - startX;
+          state.panY = e.touches[0].clientY - startY;
+          applyTransform();
+        } else if (e.touches.length === 2) {
+          const currentDist = Math.hypot(
+            e.touches[0].clientX - e.touches[1].clientX,
+            e.touches[0].clientY - e.touches[1].clientY
+          );
+          if (initialDist > 0) {
+            const factor = currentDist / initialDist;
+            initialDist = currentDist;
+            const rect = viewport.getBoundingClientRect();
+            const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
+            const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
+            zoomAt(factor, cx, cy);
+          }
+        }
+      }, { passive: true });
+
+      viewport.addEventListener('touchend', () => {
+        isTouching = false;
+        initialDist = 0;
+      });
+
+      // Mouse support for testing
+      let isMouseDown = false;
+      viewport.addEventListener('mousedown', (e) => {
+        if (e.target.closest('.map-pin')) return;
+        isMouseDown = true;
+        startX = e.clientX - state.panX;
+        startY = e.clientY - state.panY;
+      });
+      window.addEventListener('mousemove', (e) => {
+        if (!isMouseDown) return;
+        state.panX = e.clientX - startX;
+        state.panY = e.clientY - startY;
+        applyTransform();
+      });
+      window.addEventListener('mouseup', () => { isMouseDown = false; });
+      viewport.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const factor = e.deltaY < 0 ? 1.15 : 0.85;
+        const rect = viewport.getBoundingClientRect();
+        zoomAt(factor, e.clientX - rect.left, e.clientY - rect.top);
+      }, { passive: false });
+    }
+
+    // UI Action Event Listeners
+    function setupActions() {
+      // Zoom FAB buttons
+      document.getElementById('btnFitScreen').addEventListener('click', fitToScreen);
+      document.getElementById('btnZoomIn').addEventListener('click', () => {
+        zoomAt(1.3, viewport.clientWidth / 2, viewport.clientHeight / 2);
+      });
+      document.getElementById('btnZoomOut').addEventListener('click', () => {
+        zoomAt(0.77, viewport.clientWidth / 2, viewport.clientHeight / 2);
+      });
+
+      // Filter chips (Rank)
+      document.querySelectorAll('[data-filter-rank]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('[data-filter-rank]').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          state.filterRank = btn.dataset.filterRank;
+          renderPins();
+        });
+      });
+
+      // Filter chips (Status)
+      document.querySelectorAll('[data-filter-status]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('[data-filter-status]').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          state.filterStatus = btn.dataset.filterStatus;
+          renderPins();
+        });
+      });
+
+      // Bottom Sheet actions
+      document.getElementById('btnCloseSheet').addEventListener('click', closeBottomSheet);
+      document.getElementById('sheetHandleBar').addEventListener('click', closeBottomSheet);
+      document.getElementById('sheetBackdrop').addEventListener('click', (e) => {
+        if (e.target.id === 'sheetBackdrop') closeBottomSheet();
+      });
+
+      document.getElementById('btnConfirmToggle').addEventListener('click', toggleCurrentPinConfirmation);
+      document.getElementById('btnPrevPin').addEventListener('click', () => navigatePin(-1));
+      document.getElementById('btnNextPin').addEventListener('click', () => navigatePin(1));
+
+      // List Drawer
+      const listDrawer = document.getElementById('listDrawer');
+      document.getElementById('btnOpenList').addEventListener('click', () => {
+        renderListDrawer();
+        listDrawer.classList.add('open');
+      });
+      document.getElementById('btnCloseDrawer').addEventListener('click', () => {
+        listDrawer.classList.remove('open');
+      });
+
+      // Photo Lightbox
+      const lightbox = document.getElementById('lightboxModal');
+      const lightboxImg = document.getElementById('lightboxImg');
+      document.getElementById('photoWrapper').addEventListener('click', () => {
+        const src = document.getElementById('sheetCloseupImg').src;
+        if (src) {
+          lightboxImg.src = src;
+          lightbox.classList.add('open');
+        }
+      });
+      document.getElementById('btnCloseLightbox').addEventListener('click', () => {
+        lightbox.classList.remove('open');
+      });
+      lightbox.addEventListener('click', () => {
+        lightbox.classList.remove('open');
+      });
+
+      // CSV Export
+      document.getElementById('btnExportCsv').addEventListener('click', exportStatusCsv);
+    }
+
+    function exportStatusCsv() {
+      const rows = [
+        ['recordNo', 'pinType', 'corrosionRank', 'member', 'location', 'streetFrom', 'measuredThicknessMm', 'isConfirmed']
+      ];
+      state.allPins.forEach(p => {
+        rows.push([
+          `"${p.recordNo || ''}"`,
+          `"${p.pinType || ''}"`,
+          `"${p.corrosionRank || ''}"`,
+          `"${p.member || ''}"`,
+          `"${p.location || ''}"`,
+          `"${p.streetFrom || ''}"`,
+          `"${p.measuredThicknessMm || ''}"`,
+          state.confirmedPinIds.has(p.pinId) ? 'CONFIRMED' : 'UNCONFIRMED'
+        ]);
+      });
+      const csvContent = '\uFEFF' + rows.map(r => r.join(',')).join('\r\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `inspection_confirmation_${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // App Initialization
+    async function init() {
+      loadConfirmedState();
+      setupGestures();
+      setupActions();
+
+      try {
+        const resp = await fetch('./data.json');
+        if (!resp.ok) throw new Error('Fetch failed');
+        state.data = await resp.json();
+      } catch (err) {
+        console.warn('Network fetch error:', err);
+        alert('data.json の読み込みに失敗しました。');
+        return;
+      }
+
+      state.allPins = state.data.pins || [];
+      state.clusters = buildClusters(state.allPins);
+
+      const section = (state.data.sections && state.data.sections[0]) || {};
+      const rackName = section.rackNo ? `${section.rackNo}` : '点検ビューア';
+      document.getElementById('projectTitle').textContent = rackName;
+
+      const overviewFile = section.overviewPhotoFile || 'Area2-X-S01-overview.jpg';
+      overviewImg.src = `overview_photos/${overviewFile}`;
+
+      overviewImg.onload = () => {
+        fitToScreen();
+        renderPins();
+        updateProgress();
+      };
+
+      window.addEventListener('resize', fitToScreen);
+    }
+
+    window.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
